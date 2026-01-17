@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+
+<head>
+    <style>
+        .tile {
+            width: 30px;
+            height: 30px;
+            border: 1px white solid;
+        }
+
+        .tilerow {
+            display: flex;
+            flex-direction: row;
+        }
+
+        .tile.free {
+            background-color: white;
+        }
+
+        .tile.owned.red {
+            background-color: red;
+        }
+
+        .tile.owned.blue {
+            background-color: blue;
+        }
+
+        .tile.owned.green {
+            background-color: green;
+        }
+
+        .tile.owned.orange {
+            background-color: orange;
+        }
+
+        .tile.owned.empty {
+            opacity: 0.6;
+        }
+
+        body {
+            display: flex;
+            flex-direction: row;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+        }
+
+        #controls {
+            width: 50%;
+        }
+
+        #turn-identifier {
+            height: 1rem;
+            width: 2rem;
+            display: inline-block;
+        }
+
+        #turn-identifier.red {
+            background-color: red;
+        }
+
+        #turn-identifier.blue {
+            background-color: blue;
+        }
+
+        #turn-identifier.green {
+            background-color: green;
+        }
+
+        #turn-identifier.orange {
+            background-color: orange;
+        }
+
+        button {
+            padding: 10px;
+            background-color: bisque;
+            display: block;
+        }
+
+        #board {
+            width: 50%;
+        }
+
+        #store {
+            margin: 1rem;
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        #store button {
+            height: 2rem;
+            width: 10rem;
+            padding: 0.1rem;
+            padding-right: 0.2rem;
+            background-color: white;
+            display: flex;
+            gap: 10px;
+        }
+
+        .substore {
+            display: flex;
+            flex-direction: column;
+            width: fit-content;
+            border: 1px black solid;
+            padding: 1rem;
+        }
+
+        #production-buttons {
+            display: flex;
+            flex-direction: row;
+            gap: 0.5rem;
+        }
+
+        #production-buttons button {
+            height: 3rem;
+            width: 3rem;
+            padding: 0.1rem;
+            padding-right: 0.2rem;
+            background-color: white;
+            display: flex;
+            gap: 10px;
+        }
+
+
+
+        .substore h2 {
+            margin: 0px;
+        }
+
+        #store span {
+            margin-top: auto;
+            margin-bottom: auto;
+        }
+
+        #store img {
+            height: 100%;
+        }
+
+        #resources {
+            display: flex;
+            flex-direction: column;
+            width: fit-content;
+            border: 1px black solid;
+            padding: 1rem;
+        }
+
+        #productions {
+            display: flex;
+            flex-direction: column;
+            width: fit-content;
+            border: 1px black solid;
+            padding: 1rem;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="controls">
+        <div>Turn: <div id="turn-identifier"></div>
+            <button id="end-turn">End Turn</button>
+            <div id="resources">
+                <div>Dollars: <span class="resource" data-resource="dollar" data-owner="green"></span></div>
+            </div>
+            <div id="productions">
+                <div>Productions: <span class="production" data-resource="dollar" data-owner="green"></span></div>
+            </div>
+            <div id="store">
+                <div id="action-tiles" class="substore">
+                    <h2>Action Tiles</h2>
+                    <span>(price $5)</span>
+                    <p></p>
+                    <button class="action-button" data-action-type="turn"><img src="assets/turn.svg"> <span>Turn a
+                            tile</span>
+                    </button>
+                    <button class="action-button" data-action-type="toll"><img src="assets/toll.svg"> <span>Put toll on
+                            a
+                            tile</span> </button>
+                    <button class="action-button" data-action-type="block"><img src="assets/block.svg"> <span>Block a
+                            tile</span> </button>
+                    <button class="action-button" data-action-type="unblock"><img src="assets/unblock.svg">
+                        <span>Unblock a
+                            tile</span> </button>
+                </div>
+                <div id="road-tiles" class="substore">
+                    <h2>Road Tiles</h2>
+                    <span>(price varies)</span>
+                    <p></p>
+                    <button class="road-button" data-road-type="i"><img src="assets/road-i.svg"> <span>Straight road
+                            ($2)</span> </button>
+                    <button class="road-button" data-road-type="l"><img src="assets/road-l.svg"> <span>L road
+                            ($3)</span>
+                    </button>
+                    <button class="road-button" data-road-type="t"><img src="assets/road-t.svg"> <span>T road
+                            ($5)</span>
+                    </button>
+                    <button class="road-button" data-road-type="plus"><img src="assets/road-plus.svg"> <span>Crossroad
+                            ($8)</span> </button>
+                    <button class="road-button" data-road-type="random"><img src="assets/road-plus.svg"> <span>Random
+                            ($5)</span> </button>
+                </div>
+                <div id="production-tiles" class="substore">
+                    <h2>Production Tiles</h2>
+                    <span>(price varies)</span>
+                    <p></p>
+                    <button class="production-button" data-production="dollar" data-amount="single"><img
+                            src="assets/dollar-1.svg"><span>+$1 production ($5)</span></button>
+                    <button class="production-button" data-production="dollar" data-amount="double"><img
+                            src="assets/dollar-2.svg"><span>+$2 production ($15)</span></button>
+                    <button class="production-button" data-production="dollar" data-amount="triple"><img
+                            src="assets/dollar-3.svg"><span>+$3 production ($30)</span></button>
+                </div>
+            </div>
+            <div id="inventory"></div>
+        </div>
+    </div>
+    <div id="board"></div>
+</body>
+<script src="trades.js"></script>
+<script>
+    const state = game();
+    render(state);
+
+    const endTurnButton = document.getElementById("end-turn");
+    endTurnButton.addEventListener('click', () => {
+        endTurn(state);
+        render(state);
+    });
+</script>

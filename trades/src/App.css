@@ -1,0 +1,260 @@
+#root {
+  max-width: 100%;
+  width: 100%;
+  margin: 0 auto;
+  padding: 1rem;
+  text-align: center;
+}
+
+.inventory-item {
+  width: 28px;
+}
+
+.inventory-item img {
+  width: 28px;
+  height: 28px;
+}
+
+.inventory-item span {
+  padding: 1px 5px;
+  font-size: 9px;
+}
+
+.tile {
+  width: 30px;
+  height: 30px;
+  border: 1px white solid;
+}
+
+.tilerow {
+  display: flex;
+  flex-direction: row;
+}
+
+
+button {
+  padding: 10px;
+  display: block;
+}
+
+#app-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+#board-area {
+  flex: 1;
+  overflow: auto;
+}
+
+#controls {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  width: clamp(220px, 22vw, 280px);
+  max-height: calc(100vh - 2rem);
+  overflow: auto;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
+}
+
+#controls button {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.9rem;
+  line-height: 1.1;
+}
+
+#inventory {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  width: clamp(140px, 18vw, 200px);
+  height: clamp(120px, 18vw, 180px);
+  margin: 0.25rem;
+  padding: 0.25rem;
+  border: 1px solid black;
+  overflow: auto;
+  gap: 2px;
+}
+
+#store {
+  margin: 0.25rem;
+  display: flex;
+  flex-direction: column;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+#store button {
+  height: 2rem;
+  padding: 0.1rem 0.2rem;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+#production-buttons button {
+  padding: 0.1rem;
+  padding-right: 0.2rem;
+  background-color: white;
+  display: flex;
+  gap: 10px;
+}
+
+
+.substore {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  padding: 0.25rem;
+  border: 1px black solid;
+  gap: 0.35rem;
+}
+
+.substore h2 {
+  margin: 0px;
+}
+
+
+#store img {
+  height: 100%;
+}
+
+#resources {
+  display: flex;
+  flex-direction: column;
+  width: fit-content;
+  border: 1px black solid;
+  padding: 0.25rem 0.5rem;
+}
+
+#productions {
+  display: flex;
+  flex-direction: column;
+  width: fit-content;
+  border: 1px black solid;
+  padding: 0.25rem 0.5rem;
+}
+
+#turn {
+  border: 1px solid black;
+  padding: 0.25rem 0.5rem;
+}
+
+.turn {
+  color: #1a1a1a;
+}
+
+.turn.turn-red {
+  background: rgba(229, 57, 53, 0.12);
+  border-color: rgba(229, 57, 53, 0.5);
+}
+
+.turn.turn-green {
+  background: rgba(67, 160, 71, 0.12);
+  border-color: rgba(67, 160, 71, 0.5);
+}
+
+.turn.turn-blue {
+  background: rgba(30, 136, 229, 0.12);
+  border-color: rgba(30, 136, 229, 0.5);
+}
+
+.turn.turn-orange {
+  background: rgba(251, 140, 0, 0.12);
+  border-color: rgba(251, 140, 0, 0.5);
+}
+
+.turn-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.turn-indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.12);
+}
+
+.turn-red {
+  background: #e53935;
+}
+
+.turn-green {
+  background: #43a047;
+}
+
+.turn-blue {
+  background: #1e88e5;
+}
+
+.turn-orange {
+  background: #fb8c00;
+}
+
+@media (max-width: 900px) {
+  #app-layout {
+    flex-direction: column;
+  }
+
+  #controls {
+    width: 100%;
+    max-height: none;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  #store {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    max-width: 100%;
+  }
+
+  #inventory {
+    width: clamp(120px, 40vw, 180px);
+    height: clamp(110px, 30vw, 160px);
+  }
+}
+
+@keyframes pulseBrightness {
+
+  0%,
+  100% {
+    filter: brightness(1.5);
+  }
+
+  50% {
+    filter: brightness(0.5);
+  }
+}
+
+.pulsing {
+  animation: pulseBrightness 1.5s infinite ease-in-out;
+}
+
+@keyframes tilt {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  50% {
+    transform: rotate(5deg);
+  }
+
+  100% {
+    transform: rotate(0deg);
+  }
+}
+.tilting {
+  animation: tilt 0.5s infinite ease-in-out;
+}
