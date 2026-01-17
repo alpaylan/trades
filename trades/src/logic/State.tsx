@@ -7,9 +7,13 @@ import {
 	useReducer,
 } from "react";
 import {
+	calculateUserProduction,
 	game,
 	next,
+	ROAD_ROTATIONS,
+	ROAD_TYPES,
 	RESOURCE_TYPES,
+	road,
 	type Tilable,
 	zero,
 	type Game,
@@ -40,6 +44,17 @@ export type Action =
 	| { type: "PLACE_TILE"; payload: { x: number; y: number; tile: Tilable } };
 
 export const reducer = (state: State, action: Action): State => {
+	const updateUserProduction = (gameState: Game, owner: Game["turn"]) => ({
+		...gameState,
+		users: {
+			...gameState.users,
+			[owner]: {
+				...gameState.users[owner],
+				production: calculateUserProduction(gameState, owner),
+			},
+		},
+	});
+
 	return match(action)
 		.with({ type: "SELECT_TILE" }, (action) => ({
 			...state,
@@ -49,31 +64,46 @@ export const reducer = (state: State, action: Action): State => {
 			...state,
 			selected: null,
 		}))
-		.with({ type: "END_TURN" }, () => ({
-			...state,
-			game: {
-				...state.game,
-				turn: next(state.game.turn),
-				turns: state.game.turns + 1,
-				users: {
-					...state.game.users,
-					[state.game.turn]: {
-						...state.game.users[state.game.turn],
-						resources: {
-							...state.game.users[state.game.turn].resources,
-							...RESOURCE_TYPES.reduce((acc, resource) => {
-								acc[resource] =
-									state.game.users[state.game.turn].resources[resource] +
-									state.game.users[state.game.turn].production[resource];
-								return acc;
-							}, zero()),
+		.with({ type: "END_TURN" }, () => {
+			const currentTurn = state.game.turn;
+			const updatedProduction = calculateUserProduction(state.game, currentTurn);
+
+			return {
+				...state,
+				game: {
+					...state.game,
+					turn: next(currentTurn),
+					turns: state.game.turns + 1,
+					users: {
+						...state.game.users,
+						[currentTurn]: {
+							...state.game.users[currentTurn],
+							production: updatedProduction,
+							resources: {
+								...state.game.users[currentTurn].resources,
+								...RESOURCE_TYPES.reduce((acc, resource) => {
+									acc[resource] =
+										state.game.users[currentTurn].resources[resource] +
+										updatedProduction[resource];
+									return acc;
+								}, zero()),
+							},
 						},
 					},
 				},
-			},
-		}))
+			};
+		})
 		.with({ type: "BUY_ITEM" }, (action) => {
 			const { item, price } = action.payload;
+			const purchasedItem =
+				item.type_ === "road" && item.road === "plus" && price === 5
+					? road(
+							ROAD_TYPES[Math.floor(Math.random() * ROAD_TYPES.length)],
+							ROAD_ROTATIONS[
+								Math.floor(Math.random() * ROAD_ROTATIONS.length)
+							],
+						)
+					: item;
 			const user = state.game.users[state.game.turn];
 			console.log(user);
 			if (user.resources.dollar < price) {
@@ -81,7 +111,7 @@ export const reducer = (state: State, action: Action): State => {
 				return state;
 			}
 
-			if (user.inventory[toKey(item)] === undefined) {
+			if (user.inventory[toKey(purchasedItem)] === undefined) {
 				console.error("Item not in inventory");
 				return state;
 			}
@@ -96,7 +126,8 @@ export const reducer = (state: State, action: Action): State => {
 							...user,
 							inventory: {
 								...user.inventory,
-								[toKey(item)]: user.inventory[toKey(item)] + 1,
+								[toKey(purchasedItem)]:
+									user.inventory[toKey(purchasedItem)] + 1,
 							},
 							resources: {
 								...user.resources,
@@ -125,31 +156,33 @@ export const reducer = (state: State, action: Action): State => {
 				return state;
 			}
 
-			return {
-				...state,
-				game: {
-					...state.game,
-					users: {
-						...state.game.users,
-						[user.color]: {
-							...user,
-							inventory: {
-								...user.inventory,
-								"action:turn": user.inventory["action:turn"] - 1,
-							},
-						},
-					},
-					tiles: {
-						...state.game.tiles,
-						[`${y}-${x}`]: {
-							...tile,
-							content: {
-								...tile.content,
-								rotation: ((tile.content.rotation + 90) % 360) as RoadRotation,
-							},
+			const updatedGame = {
+				...state.game,
+				users: {
+					...state.game.users,
+					[user.color]: {
+						...user,
+						inventory: {
+							...user.inventory,
+							"action:turn": user.inventory["action:turn"] - 1,
 						},
 					},
 				},
+				tiles: {
+					...state.game.tiles,
+					[`${y}-${x}`]: {
+						...tile,
+						content: {
+							...tile.content,
+							rotation: ((tile.content.rotation + 90) % 360) as RoadRotation,
+						},
+					},
+				},
+			};
+
+			return {
+				...state,
+				game: updateUserProduction(updatedGame, tile.owner),
 			};
 		})
 		.with(
@@ -185,31 +218,35 @@ export const reducer = (state: State, action: Action): State => {
 					return state;
 				}
 
-				return {
-					...state,
-					game: {
-						...state.game,
-						users: {
-							...state.game.users,
-							[user.color]: {
-								...user,
-								inventory: {
-									...user.inventory,
-									"action:block": user.inventory["action:block"] - 1,
-								},
-							},
-						},
-						tiles: {
-							...state.game.tiles,
-							[`${y}-${x}`]: {
-								...tile,
-								content: {
-									...tile.content,
-									blocked: action.type === "BLOCK_TILE",
-								},
+				const inventoryKey =
+					action.type === "BLOCK_TILE" ? "action:block" : "action:unblock";
+				const updatedGame = {
+					...state.game,
+					users: {
+						...state.game.users,
+						[user.color]: {
+							...user,
+							inventory: {
+								...user.inventory,
+								[inventoryKey]: user.inventory[inventoryKey] - 1,
 							},
 						},
 					},
+					tiles: {
+						...state.game.tiles,
+						[`${y}-${x}`]: {
+							...tile,
+							content: {
+								...tile.content,
+								blocked: action.type === "BLOCK_TILE",
+							},
+						},
+					},
+				};
+
+				return {
+					...state,
+					game: updateUserProduction(updatedGame, tile.owner),
 				};
 			},
 		)
@@ -276,32 +313,34 @@ export const reducer = (state: State, action: Action): State => {
 				return state;
 			}
 
-			return {
-				...state,
-				game: {
-					...state.game,
-					users: {
-						...state.game.users,
-						[user.color]: {
-							...user,
-							inventory: {
-								...user.inventory,
-								[toKey(tile)]: user.inventory[toKey(tile)] - 1,
-							},
-						},
-					},
-					tiles: {
-						...state.game.tiles,
-						[`${y}-${x}`]: {
-							x,
-							y,
-							content: tile,
-							owned: true,
-							owner: user.color,
+			const updatedGame = {
+				...state.game,
+				users: {
+					...state.game.users,
+					[user.color]: {
+						...user,
+						inventory: {
+							...user.inventory,
+							[toKey(tile)]: user.inventory[toKey(tile)] - 1,
 						},
 					},
 				},
-                selected: user.inventory[toKey(tile)] > 1 ? tile : null,
+				tiles: {
+					...state.game.tiles,
+					[`${y}-${x}`]: {
+						x,
+						y,
+						content: tile,
+						owned: true,
+						owner: user.color,
+					},
+				},
+			};
+
+			return {
+				...state,
+				game: updateUserProduction(updatedGame, user.color),
+				selected: user.inventory[toKey(tile)] > 1 ? tile : null,
 			};
 		})
 		.exhaustive();

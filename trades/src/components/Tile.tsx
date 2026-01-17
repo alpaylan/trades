@@ -51,6 +51,7 @@ export default function Tile({
 			<button
 				type="button"
 				className="tile"
+				title="Free tile"
 				style={{
 					backgroundColor: "white",
 					width: "32px",
@@ -60,6 +61,23 @@ export default function Tile({
 			/>
 		);
 	}
+
+	const tooltip = match(tile.content)
+		.with({ type_: "empty" }, () => `Empty tile (owner: ${tile.owner})`)
+		.with({ type_: "hall" }, (content) => `City hall (level ${content.level})`)
+		.with(
+			{ type_: "road" },
+			(content) =>
+				`Road (${content.road}) - rotation ${content.rotation}°` +
+				(content.blocked ? " - blocked" : "") +
+				(content.toll ? " - toll enabled" : ""),
+		)
+		.with(
+			{ type_: "production" },
+			(content) =>
+				`Production (${content.production}) - level ${content.level}`,
+		)
+		.otherwise(() => "Tile");
 
 	const accessibleAndFree =
 		accessible &&
@@ -72,6 +90,7 @@ export default function Tile({
 		<button
 			className={`tile ${accessibleAndFree ? "pulsing" : ""}`}
 			type="button"
+			title={tooltip}
 			style={{
 				backgroundColor: tile.owner,
 				opacity: tile.content.type_ === "hall" ? 1 : 0.6,
@@ -79,6 +98,7 @@ export default function Tile({
 				height: "32px",
 				padding: "0px",
 				margin: "0px",
+				position: "relative",
 			}}
 			id={`tile-${tile.y}-${tile.x}`}
 			onClick={() => {
@@ -135,15 +155,32 @@ export default function Tile({
 			{match(tile.content)
 				.with({ type_: "empty" }, () => <></>)
 				.with({ type_: "road" }, (tile) => (
-					<img
-						src={`src/assets/road-${tile.road}.svg`}
-						alt={`${tile.road} icon`}
-						style={{
-							width: "32px",
-							height: "32px",
-							transform: `rotate(${tile.rotation}deg)`,
-						}}
-					/>
+					<>
+						<img
+							src={`src/assets/road-${tile.road}.svg`}
+							alt={`${tile.road} icon`}
+							style={{
+								width: "32px",
+								height: "32px",
+								transform: `rotate(${tile.rotation}deg)`,
+							}}
+						/>
+						{tile.blocked ? (
+							<img
+								src="src/assets/block.svg"
+								alt="blocked icon"
+								style={{
+									position: "absolute",
+									top: 0,
+									left: 0,
+									width: "32px",
+									height: "32px",
+									opacity: 0.85,
+									pointerEvents: "none",
+								}}
+							/>
+						) : null}
+					</>
 				))
 				.with({ type_: "production" }, (tile) => (
 					<img

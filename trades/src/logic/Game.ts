@@ -62,7 +62,7 @@ export function cityHall(level: CityHallLevel): CityHallTile {
     return { type_: "hall", level }
 }
 export const CITY_HALLS = [
-    [4,4], [4,13], [13, 4], [13, 13]
+    [4, 4], [4, 13], [13, 4], [13, 13]
 ];
 
 
@@ -275,7 +275,7 @@ function defaultResources(): ResourceCollection {
     };
 }
 
-function defaultProductions(): ResourceCollection {
+export function baseProductions(): ResourceCollection {
     return {
         dollar: 6,
         wood: 0,
@@ -335,10 +335,10 @@ export function game(): Game {
     tiles["13-4"] = owned(4, 13, "red", cityHall(0));
 
     const users: Record<TileOwner, User> = {
-        green: user("green", defaultResources(), defaultProductions()),
-        orange: user("orange", defaultResources(), defaultProductions()),
-        blue: user("blue", defaultResources(), defaultProductions()),
-        red: user("red", defaultResources(), defaultProductions()),
+        green: user("green", defaultResources(), baseProductions()),
+        orange: user("orange", defaultResources(), baseProductions()),
+        blue: user("blue", defaultResources(), baseProductions()),
+        red: user("red", defaultResources(), baseProductions()),
     }
 
     return { turn: "green", turns: 0, tiles, users };
@@ -479,4 +479,140 @@ export function accessibleFreeTiles(game: Game, user: User): AccessibleTile[] {
     }
 
     return accessible;
+}
+
+function isInsideBoard(point: Point): boolean {
+    return point.x >= 0 && point.x < BOARD_SIZE && point.y >= 0 && point.y < BOARD_SIZE;
+}
+
+type PassableRoadOrHall = OwnedTile & { content: RoadTile | CityHallTile };
+
+function isPassableRoadOrHall(tile: Tile): tile is PassableRoadOrHall {
+    if (!tile.owned) {
+        return false;
+    }
+    if (tile.content.type_ === "hall") {
+        return true;
+    }
+    if (tile.content.type_ === "road") {
+        return !tile.content.blocked;
+    }
+    return false;
+}
+
+function tileKey(point: Point): `${number}-${number}` {
+    return `${point.y}-${point.x}` as `${number}-${number}`;
+}
+
+export function calculateUserProduction(game: Game, owner: TileOwner): ResourceCollection {
+    const productionTotals = baseProductions();
+    const startPoint = userCapital[owner];
+    const reachable = new Set<`${number}-${number}`>();
+    const toVisit: Point[] = [startPoint];
+
+    const addReachable = (point: Point) => {
+        reachable.add(tileKey(point));
+    };
+
+    while (toVisit.length > 0) {
+        // biome-ignore lint/style/noNonNullAssertion: queue is non-empty
+        const current = toVisit.pop()!;
+        if (!isInsideBoard(current)) {
+            continue;
+        }
+        const currentKey = tileKey(current);
+        if (reachable.has(currentKey)) {
+            continue;
+        }
+
+        const tile = game.tiles[currentKey];
+        if (!tile || !tile.owned || tile.owner !== owner) {
+            continue;
+        }
+        if (!isPassableRoadOrHall(tile)) {
+            continue;
+        }
+
+        addReachable(current);
+        const directions = accessibleDirections(tile.content);
+
+        const neighbors: Array<{ point: Point; required: keyof AccessibleDirections }> = [];
+        if (directions.up) {
+            neighbors.push({ point: point(current.x, current.y - 1), required: "bottom" });
+        }
+        if (directions.right) {
+            neighbors.push({ point: point(current.x + 1, current.y), required: "left" });
+        }
+        if (directions.bottom) {
+            neighbors.push({ point: point(current.x, current.y + 1), required: "up" });
+        }
+        if (directions.left) {
+            neighbors.push({ point: point(current.x - 1, current.y), required: "right" });
+        }
+
+        for (const neighbor of neighbors) {
+            if (!isInsideBoard(neighbor.point)) {
+                continue;
+            }
+            const neighborKey = tileKey(neighbor.point);
+            if (reachable.has(neighborKey)) {
+                continue;
+            }
+            const neighborTile = game.tiles[neighborKey];
+            if (!neighborTile || !neighborTile.owned || neighborTile.owner !== owner) {
+                continue;
+            }
+            if (!isPassableRoadOrHall(neighborTile)) {
+                continue;
+            }
+            const neighborDirections = accessibleDirections(neighborTile.content);
+            if (neighborDirections[neighbor.required]) {
+                toVisit.push(neighbor.point);
+            }
+        }
+    }
+
+    const hasReachableNeighbor = (tile: OwnedTile): boolean => {
+        const positions: Array<{ point: Point; required: keyof AccessibleDirections }> = [
+            { point: point(tile.x, tile.y - 1), required: "bottom" },
+            { point: point(tile.x + 1, tile.y), required: "left" },
+            { point: point(tile.x, tile.y + 1), required: "up" },
+            { point: point(tile.x - 1, tile.y), required: "right" },
+        ];
+
+        for (const position of positions) {
+            if (!isInsideBoard(position.point)) {
+                continue;
+            }
+            const neighborKey = tileKey(position.point);
+            if (!reachable.has(neighborKey)) {
+                continue;
+            }
+            const neighborTile = game.tiles[neighborKey];
+            if (!neighborTile || !isPassableRoadOrHall(neighborTile)) {
+                continue;
+            }
+            const neighborDirections = accessibleDirections(neighborTile.content);
+            if (neighborDirections[position.required]) {
+                return true;
+            }
+        }
+
+        return false;
+    };
+
+    for (const tile of Object.values(game.tiles)) {
+        if (!tile.owned || tile.owner !== owner) {
+            continue;
+        }
+        if (tile.content.type_ !== "production") {
+            continue;
+        }
+        if (!hasReachableNeighbor(tile)) {
+            continue;
+        }
+        productionTotals[tile.content.production] += tile.content.level;
+    }
+
+    return productionTotals;
 }

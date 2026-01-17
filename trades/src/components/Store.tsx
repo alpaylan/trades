@@ -1,9 +1,4 @@
-import {
-	ROAD_TYPES,
-	type ResourceCollection,
-	type Tilable,
-	road,
-} from "../logic/Game";
+import { type ResourceCollection, type Tilable, road } from "../logic/Game";
 import { useGlobalContext } from "../logic/State";
 
 function StoreItem({
@@ -20,17 +15,19 @@ function StoreItem({
 	text: string;
 }) {
 	const { dispatch } = useGlobalContext();
+	const tooltip = `${text} (cost: ${price})`;
 
 	return (
 		<button
 			type="button"
 			disabled={resources.dollar < price}
+			title={tooltip}
 			onClick={() => {
 				dispatch({ type: "BUY_ITEM", payload: { item, price } });
 			}}
 			
 		>
-			<img src={icon} alt={`${item.type_} icon`} />
+			<img src={icon} alt={`${item.type_} icon`} title={tooltip} />
 			<span>{price}</span>
 			{/* <span>{text}</span> */}
 		</button>
@@ -107,7 +104,7 @@ export default function Store({
 					resources={resources}
 					price={5}
 					item={road("plus", 0)}
-					icon="src/assets/road-plus.svg"
+					icon="src/assets/question.svg"
 					// item={(n: number) => road(ROAD_TYPES[n], 0)}
 					// icon={(n: number) => `src/assets/road-${ROAD_TYPES[n]}.svg`}
 					text="Random ($5)"
