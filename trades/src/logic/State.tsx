@@ -18,6 +18,7 @@ import {
 	zero,
 	type Game,
 	type RoadRotation,
+	type TileKey,
 	toKey,
 } from "./Game";
 import { match, P } from "ts-pattern";
@@ -25,16 +26,22 @@ import { match, P } from "ts-pattern";
 export type State = {
 	game: Game;
 	selected: Tilable | null;
+	pendingRotation: RoadRotation | null;
+	history: State[];
 };
 
 const initialState = (): State => ({
 	game: game(),
 	selected: null,
+	pendingRotation: null,
+	history: [],
 });
 
 export type Action =
 	| { type: "SELECT_TILE"; payload: Tilable }
 	| { type: "UNSELECT_TILE" }
+	| { type: "SET_ROTATION"; payload: RoadRotation | null }
+	| { type: "UNDO" }
 	| { type: "END_TURN" }
 	| { type: "BUY_ITEM"; payload: { item: Tilable; price: number } }
 	| { type: "TURN_TILE"; payload: { x: number; y: number } }
@@ -55,15 +62,61 @@ export const reducer = (state: State, action: Action): State => {
 		},
 	});
 
+	// Helper to save state to history (only for actions that change the game state)
+	const shouldSaveToHistory = (action: Action): boolean => {
+		return !["SELECT_TILE", "UNSELECT_TILE", "SET_ROTATION", "UNDO"].includes(action.type);
+	};
+
+	// Save current state to history before making changes (except for non-game-changing actions)
+	const historyState = shouldSaveToHistory(action) 
+		? [...state.history.slice(-19), { ...state, history: [] }] // Keep last 20 states
+		: state.history;
+
+	// Handle UNDO first
+	if (action.type === "UNDO") {
+		if (historyState.length === 0) {
+			return state;
+		}
+		const previousState = historyState[historyState.length - 1];
+		return {
+			...previousState,
+			history: historyState.slice(0, -1),
+		};
+	}
+
 	return match(action)
-		.with({ type: "SELECT_TILE" }, (action) => ({
-			...state,
-			selected: action.payload,
-		}))
+		.with({ type: "SELECT_TILE" }, (action) => {
+			const newState = {
+				...state,
+				selected: action.payload,
+				pendingRotation: action.payload.type_ === "road" ? null : null,
+			};
+			return {
+				...newState,
+				history: historyState,
+			};
+		})
 		.with({ type: "UNSELECT_TILE" }, () => ({
 			...state,
 			selected: null,
+			pendingRotation: null,
+			history: historyState,
 		}))
+		.with({ type: "SET_ROTATION" }, (action) => {
+			if (!state.selected || state.selected.type_ !== "road") {
+				return { ...state, history: historyState };
+			}
+			const rotatedTile: Tilable = {
+				...state.selected,
+				rotation: action.payload ?? 0,
+			};
+			return {
+				...state,
+				selected: rotatedTile,
+				pendingRotation: action.payload,
+				history: historyState,
+			};
+		})
 		.with({ type: "END_TURN" }, () => {
 			const currentTurn = state.game.turn;
 			const updatedProduction = calculateUserProduction(state.game, currentTurn);
@@ -91,6 +144,9 @@ export const reducer = (state: State, action: Action): State => {
 						},
 					},
 				},
+				selected: null,
+				pendingRotation: null,
+				history: historyState,
 			};
 		})
 		.with({ type: "BUY_ITEM" }, (action) => {
@@ -136,6 +192,7 @@ export const reducer = (state: State, action: Action): State => {
 						},
 					},
 				},
+				history: historyState,
 			};
 		})
 		.with({ type: "TURN_TILE" }, (action) => {
@@ -183,6 +240,7 @@ export const reducer = (state: State, action: Action): State => {
 			return {
 				...state,
 				game: updateUserProduction(updatedGame, tile.owner),
+				history: historyState,
 			};
 		})
 		.with(
@@ -247,6 +305,7 @@ export const reducer = (state: State, action: Action): State => {
 				return {
 					...state,
 					game: updateUserProduction(updatedGame, tile.owner),
+					history: historyState,
 				};
 			},
 		)
@@ -293,6 +352,7 @@ export const reducer = (state: State, action: Action): State => {
 						},
 					},
 				},
+				history: historyState,
 			};
 		})
 		.with({ type: "PLACE_TILE" }, (action) => {
@@ -308,9 +368,31 @@ export const reducer = (state: State, action: Action): State => {
 				console.log("Tile is not owned by user");
 				return state;
 			}
-			if (user.inventory[toKey(tile)] <= 0) {
-				console.log(`Not enough ${toKey(tile)} tiles in inventory`);
-				return state;
+
+			// For roads, find any road of the same type (any rotation) in inventory
+			let inventoryKey: TileKey;
+			let inventoryCount: number;
+			
+			if (tile.type_ === "road") {
+				// Find any road of the same type with any rotation
+				const roadType = tile.road;
+				inventoryKey = ROAD_ROTATIONS
+					.map((rotation) => `road:${roadType}:${rotation}` as TileKey)
+					.find((key) => user.inventory[key] > 0) as TileKey | undefined;
+				
+				if (!inventoryKey || user.inventory[inventoryKey] <= 0) {
+					console.log(`Not enough ${roadType} road tiles in inventory`);
+					return state;
+				}
+				inventoryCount = user.inventory[inventoryKey] - 1;
+			} else {
+				// For non-roads, use the exact tile key
+				inventoryKey = toKey(tile);
+				if (user.inventory[inventoryKey] <= 0) {
+					console.log(`Not enough ${toKey(tile)} tiles in inventory`);
+					return state;
+				}
+				inventoryCount = user.inventory[inventoryKey] - 1;
 			}
 
 			const updatedGame = {
@@ -321,7 +403,7 @@ export const reducer = (state: State, action: Action): State => {
 						...user,
 						inventory: {
 							...user.inventory,
-							[toKey(tile)]: user.inventory[toKey(tile)] - 1,
+							[inventoryKey]: inventoryCount,
 						},
 					},
 				},
@@ -337,10 +419,20 @@ export const reducer = (state: State, action: Action): State => {
 				},
 			};
 
+			// Check if there are more roads of the same type available (for keeping selection)
+			const hasMoreRoads = tile.type_ === "road" 
+				? ROAD_ROTATIONS.some((rotation) => {
+					const key = `road:${tile.road}:${rotation}` as TileKey;
+					return user.inventory[key] > (key === inventoryKey ? 1 : 0);
+				})
+				: inventoryCount > 0;
+
 			return {
 				...state,
 				game: updateUserProduction(updatedGame, user.color),
-				selected: user.inventory[toKey(tile)] > 1 ? tile : null,
+				selected: hasMoreRoads ? tile : null,
+				pendingRotation: null,
+				history: historyState,
 			};
 		})
 		.exhaustive();

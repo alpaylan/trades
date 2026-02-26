@@ -298,8 +298,8 @@ function user(color: TileOwner, resources: ResourceCollection, production: Resou
 const userCapital = {
     "green": point(4, 4),
     "orange": point(13, 4),
-    "blue": point(4, 13),
-    "red": point(13, 13),
+    "blue": point(13, 13),
+    "red": point(4, 13),
 }
 
 export const ALL_TILES_POINTS: Point[] = Array.from({ length: BOARD_SIZE * BOARD_SIZE }, (_, i) => {

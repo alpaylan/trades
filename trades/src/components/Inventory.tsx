@@ -90,18 +90,35 @@ export default function Inventory({
 							<div key={index}>
 								<InventoryItem
 									selected={
-										!!(state.selected && toKey(state.selected) === toKey(tile))
+										!!(state.selected && (
+											tile.type_ === "road" && state.selected.type_ === "road"
+												? state.selected.road === tile.road
+												: toKey(state.selected) === toKey(tile)
+										))
 									}
 									tile={tile}
 									count={inventory[tileKey as TileKey]}
 									placeTile={() => {
-										if (
-											state.selected &&
-											toKey(state.selected) === toKey(tile)
-										) {
+										const isSelected = state.selected && (
+											tile.type_ === "road" && state.selected.type_ === "road"
+												? state.selected.road === tile.road
+												: toKey(state.selected) === toKey(tile)
+										);
+										
+										if (isSelected) {
 											dispatch({ type: "UNSELECT_TILE" });
 										} else {
-											dispatch({ type: "SELECT_TILE", payload: tile });
+											// When selecting a road, create a new instance with rotation reset
+											// so player must choose rotation before placing
+											if (tile.type_ === "road") {
+												const { road: roadType } = tile;
+												dispatch({ 
+													type: "SELECT_TILE", 
+													payload: { ...tile, rotation: 0 } 
+												});
+											} else {
+												dispatch({ type: "SELECT_TILE", payload: tile });
+											}
 										}
 									}}
 								/>
