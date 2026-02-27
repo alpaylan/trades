@@ -19,11 +19,33 @@ import {
 	type Game,
 	type RoadRotation,
 	type TileKey,
+	type TileOwner,
 	toKey,
 } from "./Game";
 import { match, P } from "ts-pattern";
 
 export type TurnDirection = "cw" | "ccw";
+
+const TILE_OWNERS: TileOwner[] = ["green", "orange", "blue", "red"];
+
+const initialEndedThisRound = (): Record<TileOwner, boolean> => ({
+	green: false,
+	orange: false,
+	blue: false,
+	red: false,
+});
+
+type PurchasedThisTurn = Record<
+	TileOwner,
+	Partial<Record<TileKey, number>>
+>;
+
+const initialPurchasedThisTurn = (): PurchasedThisTurn => ({
+	green: {},
+	orange: {},
+	blue: {},
+	red: {},
+});
 
 export type State = {
 	game: Game;
@@ -33,6 +55,12 @@ export type State = {
 	pendingTurn: { x: number; y: number } | null;
 	/** Last random tile rolled this turn; after undo, buying random again gives this same tile. */
 	lastRandomRoll: Tilable | null;
+	/** How many actions the current player has used in this turn (max 2). */
+	actionsUsedThisTurn: number;
+	/** Whether a player has ended their participation in the current round. */
+	endedThisRound: Record<TileOwner, boolean>;
+	/** Items bought during the current turn of each player that haven't been used yet. */
+	purchasedThisTurn: PurchasedThisTurn;
 	history: State[];
 };
 
@@ -42,6 +70,9 @@ const initialState = (): State => ({
 	pendingRotation: null,
 	pendingTurn: null,
 	lastRandomRoll: null,
+	actionsUsedThisTurn: 0,
+	endedThisRound: initialEndedThisRound(),
+	purchasedThisTurn: initialPurchasedThisTurn(),
 	history: [],
 });
 
@@ -140,35 +171,107 @@ export const reducer = (state: State, action: Action): State => {
 		})
 		.with({ type: "END_TURN" }, () => {
 			const currentTurn = state.game.turn;
-			const updatedProduction = calculateUserProduction(state.game, currentTurn);
+			const actionsUsedThisTurn = state.actionsUsedThisTurn;
+
+			// If player ends turn without any actions, they are done for this round
+			const endedThisRound =
+				actionsUsedThisTurn === 0
+					? {
+							...state.endedThisRound,
+							[currentTurn]: true,
+						}
+					: state.endedThisRound;
+
+			const allEndedThisRound = TILE_OWNERS.every(
+				(owner) => endedThisRound[owner],
+			);
+
+			const purchasedClearedForCurrent: PurchasedThisTurn = {
+				...state.purchasedThisTurn,
+				[currentTurn]: {},
+			};
+
+			// Helper: find next player this round who has not ended yet
+			const findNextActiveTurn = (from: TileOwner): TileOwner => {
+				let candidate = next(from);
+				for (let i = 0; i < TILE_OWNERS.length; i += 1) {
+					if (!endedThisRound[candidate]) {
+						return candidate;
+					}
+					candidate = next(candidate);
+				}
+				return candidate;
+			};
+
+			// If all players ended this round, start a new round:
+			// - everyone receives their full production
+			// - round action counters and flags reset
+			// - turn moves to the next player in order
+			if (allEndedThisRound) {
+				const baseGame = state.game;
+
+				const newUsers: typeof baseGame.users = { ...baseGame.users };
+				for (const owner of TILE_OWNERS) {
+					const user = baseGame.users[owner];
+					const production = calculateUserProduction(baseGame, owner);
+					const addedResources = RESOURCE_TYPES.reduce(
+						(acc, resource) => {
+							acc[resource] =
+								user.resources[resource] + production[resource];
+							return acc;
+						},
+						zero(),
+					);
+
+					newUsers[owner] = {
+						...user,
+						production,
+						resources: {
+							...user.resources,
+							...addedResources,
+						},
+					};
+				}
+
+				const nextTurn = next(currentTurn);
+
+				return {
+					...state,
+					game: {
+						...baseGame,
+						turn: nextTurn,
+						turns: baseGame.turns + 1,
+						round: (baseGame.round ?? 1) + 1,
+						users: newUsers,
+					},
+					selected: null,
+					pendingRotation: null,
+					pendingTurn: null,
+					lastRandomRoll: null,
+					actionsUsedThisTurn: 0,
+					endedThisRound: initialEndedThisRound(),
+					purchasedThisTurn: initialPurchasedThisTurn(),
+					history: historyState,
+				};
+			}
+
+			// Otherwise stay in the same round and move to the next player
+			const nextTurn = findNextActiveTurn(currentTurn);
 
 			return {
 				...state,
 				game: {
 					...state.game,
-					turn: next(currentTurn),
+					turn: nextTurn,
 					turns: state.game.turns + 1,
-					users: {
-						...state.game.users,
-						[currentTurn]: {
-							...state.game.users[currentTurn],
-							production: updatedProduction,
-							resources: {
-								...state.game.users[currentTurn].resources,
-								...RESOURCE_TYPES.reduce((acc, resource) => {
-									acc[resource] =
-										state.game.users[currentTurn].resources[resource] +
-										updatedProduction[resource];
-									return acc;
-								}, zero()),
-							},
-						},
-					},
 				},
 				selected: null,
 				pendingRotation: null,
 				pendingTurn: null,
 				lastRandomRoll: null,
+					actionsUsedThisTurn: 0,
+				endedThisRound,
+				purchasedThisTurn: purchasedClearedForCurrent,
 				history: historyState,
 			};
 		})
@@ -187,6 +290,11 @@ export const reducer = (state: State, action: Action): State => {
 				: item;
 
 			const user = state.game.users[state.game.turn];
+			// Enforce per-turn action limit (max 2)
+			if (state.actionsUsedThisTurn >= 2) {
+				return state;
+			}
+
 			if (user.resources.dollar < price) {
 				return state;
 			}
@@ -194,6 +302,17 @@ export const reducer = (state: State, action: Action): State => {
 			if (user.inventory[toKey(purchasedItem)] === undefined) {
 				return state;
 			}
+
+			const key = toKey(purchasedItem);
+			const userPurchased = state.purchasedThisTurn[user.color] ?? {};
+			const updatedUserPurchased: Partial<Record<TileKey, number>> = {
+				...userPurchased,
+				[key]: (userPurchased[key] ?? 0) + 1,
+			};
+			const purchasedThisTurn: PurchasedThisTurn = {
+				...state.purchasedThisTurn,
+				[user.color]: updatedUserPurchased,
+			};
 
 			// For random tile: save state with lastRandomRoll set to this result so undo restores it
 			const historyForRandom = isRandomTile
@@ -221,6 +340,8 @@ export const reducer = (state: State, action: Action): State => {
 					},
 				},
 				lastRandomRoll: isRandomTile ? null : state.lastRandomRoll,
+				actionsUsedThisTurn: state.actionsUsedThisTurn + 1,
+				purchasedThisTurn,
 				history: historyForRandom,
 			};
 		})
@@ -228,6 +349,14 @@ export const reducer = (state: State, action: Action): State => {
 			const { x, y, direction } = action.payload;
 			const user = state.game.users[state.game.turn];
 			const tile = state.game.tiles[`${y}-${x}`];
+			const actionsUsed = state.actionsUsedThisTurn;
+			const inventoryKey = "action:turn" as TileKey;
+			const userPurchased = state.purchasedThisTurn[user.color] ?? {};
+			const fromPurchaseThisTurn = (userPurchased[inventoryKey] ?? 0) > 0;
+
+			if (!fromPurchaseThisTurn && (actionsUsed >= 2 || ended)) {
+				return state;
+			}
 
 			if (!tile.owned) {
 				console.log("Tile is free");
@@ -269,9 +398,30 @@ export const reducer = (state: State, action: Action): State => {
 				},
 			};
 
+			let purchasedThisTurn: PurchasedThisTurn = state.purchasedThisTurn;
+			if (fromPurchaseThisTurn) {
+				const remaining = (userPurchased[inventoryKey] ?? 0) - 1;
+				const updatedUserPurchased: Partial<Record<TileKey, number>> = {
+					...userPurchased,
+				};
+				if (remaining > 0) {
+					updatedUserPurchased[inventoryKey] = remaining;
+				} else {
+					delete updatedUserPurchased[inventoryKey];
+				}
+				purchasedThisTurn = {
+					...state.purchasedThisTurn,
+					[user.color]: updatedUserPurchased,
+				};
+			}
+
 			return {
 				...state,
 				game: updateUserProduction(updatedGame, tile.owner),
+				actionsUsedThisTurn: fromPurchaseThisTurn
+					? state.actionsUsedThisTurn
+					: actionsUsed + 1,
+				purchasedThisTurn,
 				pendingTurn: null,
 				history: historyState,
 			};
@@ -282,6 +432,7 @@ export const reducer = (state: State, action: Action): State => {
 				const { x, y } = action.payload;
 				const user = state.game.users[state.game.turn];
 				const tile = state.game.tiles[`${y}-${x}`];
+				const actionsUsed = state.actionsUsedThisTurn;
 
 				if (!tile.owned) {
 					console.log("Tile is free");
@@ -311,6 +462,14 @@ export const reducer = (state: State, action: Action): State => {
 
 				const inventoryKey =
 					action.type === "BLOCK_TILE" ? "action:block" : "action:unblock";
+				const userPurchased = state.purchasedThisTurn[user.color] ?? {};
+				const fromPurchaseThisTurn =
+					(userPurchased[inventoryKey] ?? 0) > 0;
+
+				if (!fromPurchaseThisTurn && actionsUsed >= 2) {
+					return state;
+				}
+
 				const updatedGame = {
 					...state.game,
 					users: {
@@ -335,9 +494,30 @@ export const reducer = (state: State, action: Action): State => {
 					},
 				};
 
+				let purchasedThisTurn: PurchasedThisTurn = state.purchasedThisTurn;
+				if (fromPurchaseThisTurn) {
+					const remaining = (userPurchased[inventoryKey] ?? 0) - 1;
+					const updatedUserPurchased: Partial<Record<TileKey, number>> = {
+						...userPurchased,
+					};
+					if (remaining > 0) {
+						updatedUserPurchased[inventoryKey] = remaining;
+					} else {
+						delete updatedUserPurchased[inventoryKey];
+					}
+					purchasedThisTurn = {
+						...state.purchasedThisTurn,
+						[user.color]: updatedUserPurchased,
+					};
+				}
+
 				return {
 					...state,
 					game: updateUserProduction(updatedGame, tile.owner),
+					actionsUsedThisTurn: fromPurchaseThisTurn
+						? state.actionsUsedThisTurn
+						: actionsUsed + 1,
+					purchasedThisTurn,
 					history: historyState,
 				};
 			},
@@ -346,6 +526,16 @@ export const reducer = (state: State, action: Action): State => {
 			const { x, y } = action.payload;
 			const user = state.game.users[state.game.turn];
 			const tile = state.game.tiles[`${y}-${x}`];
+
+			const actionsUsed = state.actionsUsedThisTurn;
+			const inventoryKey = "action:toll" as TileKey;
+			const userPurchased = state.purchasedThisTurn[user.color] ?? {};
+			const fromPurchaseThisTurn =
+				(userPurchased[inventoryKey] ?? 0) > 0;
+
+			if (!fromPurchaseThisTurn && actionsUsed >= 2) {
+				return state;
+			}
 
 			if (!tile.owned) {
 				console.log("Tile is free");
@@ -358,6 +548,23 @@ export const reducer = (state: State, action: Action): State => {
 			if (tile.content.toll && user.inventory["action:toll"] <= 0) {
 				console.log("Not enough toll actions");
 				return state;
+			}
+
+			let purchasedThisTurn: PurchasedThisTurn = state.purchasedThisTurn;
+			if (fromPurchaseThisTurn) {
+				const remaining = (userPurchased[inventoryKey] ?? 0) - 1;
+				const updatedUserPurchased: Partial<Record<TileKey, number>> = {
+					...userPurchased,
+				};
+				if (remaining > 0) {
+					updatedUserPurchased[inventoryKey] = remaining;
+				} else {
+					delete updatedUserPurchased[inventoryKey];
+				}
+				purchasedThisTurn = {
+					...state.purchasedThisTurn,
+					[user.color]: updatedUserPurchased,
+				};
 			}
 
 			return {
@@ -385,6 +592,10 @@ export const reducer = (state: State, action: Action): State => {
 						},
 					},
 				},
+				actionsUsedThisTurn: fromPurchaseThisTurn
+					? state.actionsUsedThisTurn
+					: actionsUsed + 1,
+				purchasedThisTurn,
 				history: historyState,
 			};
 		})
@@ -392,6 +603,7 @@ export const reducer = (state: State, action: Action): State => {
 			const { x, y, tile } = action.payload;
 			const user = state.game.users[state.game.turn];
 			const currentTile = state.game.tiles[`${y}-${x}`];
+			const actionsUsed = state.actionsUsedThisTurn;
 
 			if (!currentTile.owned) {
 				console.log("Tile is not owned");
@@ -428,6 +640,14 @@ export const reducer = (state: State, action: Action): State => {
 				inventoryCount = user.inventory[inventoryKey] - 1;
 			}
 
+			const userPurchased = state.purchasedThisTurn[user.color] ?? {};
+			const fromPurchaseThisTurn =
+				(userPurchased[inventoryKey] ?? 0) > 0;
+
+			if (!fromPurchaseThisTurn && actionsUsed >= 2) {
+				return state;
+			}
+
 			const updatedGame = {
 				...state.game,
 				users: {
@@ -460,11 +680,32 @@ export const reducer = (state: State, action: Action): State => {
 				})
 				: inventoryCount > 0;
 
+			let purchasedThisTurn: PurchasedThisTurn = state.purchasedThisTurn;
+			if (fromPurchaseThisTurn) {
+				const remaining = (userPurchased[inventoryKey] ?? 0) - 1;
+				const updatedUserPurchased: Partial<Record<TileKey, number>> = {
+					...userPurchased,
+				};
+				if (remaining > 0) {
+					updatedUserPurchased[inventoryKey] = remaining;
+				} else {
+					delete updatedUserPurchased[inventoryKey];
+				}
+				purchasedThisTurn = {
+					...state.purchasedThisTurn,
+					[user.color]: updatedUserPurchased,
+				};
+			}
+
 			return {
 				...state,
 				game: updateUserProduction(updatedGame, user.color),
 				selected: hasMoreRoads ? tile : null,
 				pendingRotation: null,
+				actionsUsedThisTurn: fromPurchaseThisTurn
+					? state.actionsUsedThisTurn
+					: actionsUsed + 1,
+				purchasedThisTurn,
 				history: historyState,
 			};
 		})

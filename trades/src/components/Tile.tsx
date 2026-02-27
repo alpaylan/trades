@@ -4,7 +4,10 @@ import {
 	accessibleDirections,
 	type AccessibleTile,
 	CITY_HALLS,
+	ROAD_ROTATIONS,
 	type Tile as TileType,
+	type TileKey,
+	toKey,
 } from "../logic/Game";
 import { useGlobalContext } from "../logic/State";
 
@@ -45,6 +48,11 @@ export default function Tile({
 	accessible: AccessibleTile | null;
 }) {
 	const { state, dispatch } = useGlobalContext();
+	const current = state.game.turn;
+	const actionsUsed = state.actionsUsedThisTurn ?? 0;
+	const ended = state.endedThisRound[current];
+	const canStartAction = actionsUsed < 2 && !ended;
+	const purchasedForUser = state.purchasedThisTurn[current] ?? {};
 
 	if (!tile.owned) {
 		return (
@@ -86,10 +94,31 @@ export default function Tile({
 			directionMatch(accessibleDirections(state.selected), accessible)) ||
 			(state.selected.type_ === "production" && notInCenter(accessible)));
 
+	let canClick = false;
+	if (!ended && state.selected) {
+		if (canStartAction) {
+			canClick = true;
+		} else {
+			let purchasedCount = 0;
+			if (state.selected.type_ === "road") {
+				// Any rotation of this road type bought this turn allows placement after 2 actions
+				for (const rotation of ROAD_ROTATIONS) {
+					const key = `road:${state.selected.road}:${rotation}` as TileKey;
+					purchasedCount += purchasedForUser[key] ?? 0;
+				}
+			} else {
+				const key = toKey(state.selected);
+				purchasedCount = purchasedForUser[key] ?? 0;
+			}
+			canClick = purchasedCount > 0;
+		}
+	}
+
 	return (
 		<button
 			className={`tile ${accessibleAndFree ? "pulsing" : ""}`}
 			type="button"
+			disabled={!canClick}
 			title={tooltip}
 			style={{
 				backgroundColor: tile.owner,
@@ -102,6 +131,9 @@ export default function Tile({
 			}}
 			id={`tile-${tile.y}-${tile.x}`}
 			onClick={() => {
+				if (!canClick) {
+					return;
+				}
 				if (state.selected) {
 					match(state.selected)
 						.with({ type_: "action" }, (tile_) => {

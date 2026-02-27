@@ -241,7 +241,10 @@ export const BOARD_SIZE = 18;
 
 export type Game = {
     turn: TileOwner,
+    /** Total number of turns taken so far (for debugging / statistics). */
     turns: number,
+    /** Current round number (starts from 1). */
+    round: number,
     users: Record<TileOwner, User>,
     tiles: Record<`${number}-${number}`, Tile>
     // phase: Phase
@@ -341,7 +344,7 @@ export function game(): Game {
         red: user("red", defaultResources(), baseProductions()),
     }
 
-    return { turn: "green", turns: 0, tiles, users };
+    return { turn: "green", turns: 0, round: 1, tiles, users };
 }
 
 export type AccessibleTile = Point & AccessibleDirections;

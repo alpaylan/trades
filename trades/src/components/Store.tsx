@@ -14,15 +14,21 @@ function StoreItem({
 	icon: string;
 	text: string;
 }) {
-	const { dispatch } = useGlobalContext();
+	const { state, dispatch } = useGlobalContext();
+	const current = state.game.turn;
+	const actionsUsed = state.actionsUsedThisTurn ?? 0;
+	const canAct = actionsUsed < 2;
 	const tooltip = `${text} (cost: ${price})`;
+
+	const disabled = resources.dollar < price || !canAct;
 
 	return (
 		<button
 			type="button"
-			disabled={resources.dollar < price}
+			disabled={disabled}
 			title={tooltip}
 			onClick={() => {
+				if (disabled) return;
 				dispatch({ type: "BUY_ITEM", payload: { item, price } });
 			}}
 			

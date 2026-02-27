@@ -104,6 +104,11 @@ button {
   text-align: right;
 }
 
+.player-balance-production {
+  font-size: 0.8em;
+  color: rgba(0, 0, 0, 0.6);
+}
+
 .player-balance-item.turn-green { background: rgba(67, 160, 71, 0.12); }
 .player-balance-item.turn-orange { background: rgba(251, 140, 0, 0.12); }
 .player-balance-item.turn-blue { background: rgba(30, 136, 229, 0.12); }
@@ -135,13 +140,17 @@ button {
   flex-direction: row;
   flex-wrap: wrap;
   align-content: flex-start;
-  width: clamp(140px, 18vw, 200px);
-  height: clamp(120px, 18vw, 180px);
-  margin: 0.25rem;
-  padding: 0.25rem;
-  border: 1px solid black;
+  width: calc(100% - 1rem);
+  max-width: 233px;
+  min-height: 110px;
+  margin: 0.25rem auto;
+  padding: 0.4rem;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
   overflow: auto;
-  gap: 2px;
+  gap: 4px;
 }
 
 #store {

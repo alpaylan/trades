@@ -21,7 +21,13 @@ export default function PlayerBalances() {
 						>
 							<span className={`turn-indicator turn-${color}`} aria-hidden="true" />
 							<span className="player-balance-label">{color}</span>
-							<span className="player-balance-amount">${user.resources.dollar}</span>
+							<span className="player-balance-amount">
+								${user.resources.dollar}
+								<span className="player-balance-production">
+									{" "}
+									(+{user.production.dollar})
+								</span>
+							</span>
 						</li>
 					);
 				})}

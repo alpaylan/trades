@@ -22,37 +22,62 @@ export default function RotationSelector() {
 	return (
 		<div
 			style={{
-				display: "flex",
-				flexDirection: "column",
-				gap: "10px",
-				padding: "10px",
-				border: "2px solid #333",
-				borderRadius: "8px",
+				display: "inline-flex",
+				alignItems: "center",
+				gap: "6px",
+				padding: "4px 6px",
+				borderRadius: "999px",
 				backgroundColor: "#f0f0f0",
-				marginTop: "10px",
+				marginTop: "6px",
+				fontSize: "11px",
 			}}
 		>
-			<div style={{ fontWeight: "bold" }}>Select Rotation:</div>
-			<div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+			<span style={{ fontWeight: "bold" }}>Rotation:</span>
+			<span
+				style={{
+					width: 20,
+					height: 20,
+					borderRadius: 4,
+					border: "1px solid rgba(0,0,0,0.2)",
+					display: "inline-flex",
+					alignItems: "center",
+					justifyContent: "center",
+					backgroundColor: "white",
+				}}
+				aria-hidden="true"
+			>
+				<img
+					src={`src/assets/road-${state.selected.road}.svg`}
+					alt=""
+					style={{
+						width: 14,
+						height: 14,
+						transform: `rotate(${effectiveRotation}deg)`,
+					}}
+				/>
+			</span>
+			<div style={{ display: "inline-flex", gap: "4px", flexWrap: "wrap" }}>
 				{rotations.map((rotation) => (
 					<button
 						key={rotation}
 						type="button"
 						onClick={() => dispatch({ type: "SET_ROTATION", payload: rotation })}
 						style={{
-							padding: "8px 16px",
-							border: "2px solid",
+							width: 26,
+							height: 26,
+							borderRadius: "999px",
+							border: "1px solid",
 							borderColor:
 								state.selected &&
 								state.selected.type_ === "road" &&
 								effectiveRotation === rotation
-									? "#007bff"
+									? "#1976d2"
 									: "#ccc",
 							backgroundColor:
 								state.selected &&
 								state.selected.type_ === "road" &&
 								effectiveRotation === rotation
-									? "#007bff"
+									? "#1976d2"
 									: "white",
 							color:
 								state.selected &&
@@ -60,30 +85,16 @@ export default function RotationSelector() {
 								effectiveRotation === rotation
 									? "white"
 									: "#333",
-							borderRadius: "4px",
+							display: "inline-flex",
+							alignItems: "center",
+							justifyContent: "center",
+							fontSize: "10px",
 							cursor: "pointer",
+							padding: 0,
 						}}
 						title={`Rotate ${rotation}°`}
 					>
-						<div
-							style={{
-								display: "flex",
-								flexDirection: "column",
-								alignItems: "center",
-								gap: "4px",
-							}}
-						>
-							<img
-								src={`src/assets/road-${state.selected.road}.svg`}
-								alt={`${state.selected.road} road`}
-								style={{
-									width: "32px",
-									height: "32px",
-									transform: `rotate(${rotation}deg)`,
-								}}
-							/>
-							<span style={{ fontSize: "12px" }}>{rotation}°</span>
-						</div>
+						<span>{rotation}°</span>
 					</button>
 				))}
 			</div>

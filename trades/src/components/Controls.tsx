@@ -1,8 +1,6 @@
 import type { TurnDirection } from "../logic/State";
 import { useGlobalContext } from "../logic/State";
 import Inventory from "./Inventory";
-import Productions from "./Productions";
-import Resources from "./Resources";
 import RotationSelector from "./RotationSelector";
 import Store from "./Store";
 import Turn from "./Turn";
@@ -11,12 +9,28 @@ export default function Controls() {
 	const { state, dispatch } = useGlobalContext();
 
 	const user = state.game.users[state.game.turn];
+	const actionsUsed = state.actionsUsedThisTurn ?? 0;
+	const actionsLeft = Math.max(0, 2 - actionsUsed);
+	const canStartAction =
+		actionsLeft > 0 && !state.endedThisRound[state.game.turn];
 
 	return (
 		<div id="controls">
-			<Turn turn={state.game.turn} />
+			<Turn
+				turn={state.game.turn}
+				round={state.game.round ?? 1}
+				actionsLeft={actionsLeft}
+			/>
 			<div style={{ display: "flex", gap: "10px" }}>
-				<button type="button" onClick={() => dispatch({ type: "END_TURN" })}>
+				<button
+					type="button"
+					onClick={() => dispatch({ type: "END_TURN" })}
+					style={{
+						backgroundColor: actionsLeft === 0 ? "#ffb300" : "#e0e0e0",
+						borderRadius: "4px",
+						border: "1px solid rgba(0,0,0,0.2)",
+					}}
+				>
 					End Turn
 				</button>
 				<button 
@@ -88,8 +102,6 @@ export default function Controls() {
 					</div>
 				</div>
 			)}
-			<Resources resources={user.resources} />
-			<Productions productions={user.production} />
 			<Store resources={user.resources} />
 		</div>
 	);

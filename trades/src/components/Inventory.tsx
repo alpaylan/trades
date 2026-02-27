@@ -1,5 +1,6 @@
 import { match } from "ts-pattern";
 import {
+	ROAD_ROTATIONS,
 	type TileKey,
 	toTilable,
 	type Inventory as InventoryType,
@@ -79,6 +80,11 @@ export default function Inventory({
 	inventory: InventoryType;
 }) {
 	const { state, dispatch } = useGlobalContext();
+	const current = state.game.turn;
+	const actionsUsed = state.actionsUsedThisTurn ?? 0;
+	const ended = state.endedThisRound[current];
+	const canStartAction = actionsUsed < 2 && !ended;
+	const purchasedForUser = state.purchasedThisTurn[current] ?? {};
 	return (
 		<div id="inventory">
 			{Object.keys(inventory)
@@ -98,6 +104,58 @@ export default function Inventory({
 									}
 									tile={tile}
 									count={inventory[tileKey as TileKey]}
+									placeTile={() => {
+										const key = tileKey as TileKey;
+										let purchasedCount =
+											purchasedForUser[key] ?? 0;
+										if (tile.type_ === "road") {
+											// Any rotation of this road type bought this turn counts
+											purchasedCount = ROAD_ROTATIONS.reduce(
+												(sum, rotation) => {
+													const roadKey = `road:${tile.road}:${rotation}` as TileKey;
+													return (
+														sum +
+														(purchasedForUser[roadKey] ?? 0)
+													);
+												},
+												0,
+											);
+										}
+										if (
+											!canStartAction &&
+											purchasedCount === 0
+										) {
+											return;
+										}
+
+										const isSelected =
+											state.selected &&
+											(tile.type_ === "road" &&
+											state.selected.type_ === "road"
+												? state.selected.road ===
+													tile.road
+												: toKey(state.selected) ===
+													toKey(tile));
+										
+										if (isSelected) {
+											dispatch({
+												type: "UNSELECT_TILE",
+											});
+										} else if (tile.type_ === "road") {
+											dispatch({
+												type: "SELECT_TILE",
+												payload: {
+													...tile,
+													rotation: 0,
+												},
+											});
+										} else {
+											dispatch({
+												type: "SELECT_TILE",
+												payload: tile,
+											});
+										}
+									}}
 									placeTile={() => {
 										const isSelected = state.selected && (
 											tile.type_ === "road" && state.selected.type_ === "road"
