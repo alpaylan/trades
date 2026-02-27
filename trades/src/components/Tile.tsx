@@ -110,7 +110,7 @@ export default function Tile({
 								match(tile_.action)
 									.with("turn", () => {
 										dispatch({
-											type: "TURN_TILE",
+											type: "SET_PENDING_TURN",
 											payload: { x: tile.x, y: tile.y },
 										});
 									})

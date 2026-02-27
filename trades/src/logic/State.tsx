@@ -23,10 +23,16 @@ import {
 } from "./Game";
 import { match, P } from "ts-pattern";
 
+export type TurnDirection = "cw" | "ccw";
+
 export type State = {
 	game: Game;
 	selected: Tilable | null;
 	pendingRotation: RoadRotation | null;
+	/** When set, user must choose CW or CCW to apply the turn action on this tile. */
+	pendingTurn: { x: number; y: number } | null;
+	/** Last random tile rolled this turn; after undo, buying random again gives this same tile. */
+	lastRandomRoll: Tilable | null;
 	history: State[];
 };
 
@@ -34,6 +40,8 @@ const initialState = (): State => ({
 	game: game(),
 	selected: null,
 	pendingRotation: null,
+	pendingTurn: null,
+	lastRandomRoll: null,
 	history: [],
 });
 
@@ -44,7 +52,9 @@ export type Action =
 	| { type: "UNDO" }
 	| { type: "END_TURN" }
 	| { type: "BUY_ITEM"; payload: { item: Tilable; price: number } }
-	| { type: "TURN_TILE"; payload: { x: number; y: number } }
+	| { type: "SET_PENDING_TURN"; payload: { x: number; y: number } }
+	| { type: "CLEAR_PENDING_TURN" }
+	| { type: "TURN_TILE"; payload: { x: number; y: number; direction: TurnDirection } }
 	| { type: "BLOCK_TILE"; payload: { x: number; y: number } }
 	| { type: "UNBLOCK_TILE"; payload: { x: number; y: number } }
 	| { type: "TOLL_TILE"; payload: { x: number; y: number } }
@@ -64,7 +74,7 @@ export const reducer = (state: State, action: Action): State => {
 
 	// Helper to save state to history (only for actions that change the game state)
 	const shouldSaveToHistory = (action: Action): boolean => {
-		return !["SELECT_TILE", "UNSELECT_TILE", "SET_ROTATION", "UNDO"].includes(action.type);
+		return !["SELECT_TILE", "UNSELECT_TILE", "SET_ROTATION", "SET_PENDING_TURN", "CLEAR_PENDING_TURN", "UNDO"].includes(action.type);
 	};
 
 	// Save current state to history before making changes (except for non-game-changing actions)
@@ -100,6 +110,17 @@ export const reducer = (state: State, action: Action): State => {
 			...state,
 			selected: null,
 			pendingRotation: null,
+			pendingTurn: null,
+			history: historyState,
+		}))
+		.with({ type: "SET_PENDING_TURN" }, (action) => ({
+			...state,
+			pendingTurn: action.payload,
+			history: historyState,
+		}))
+		.with({ type: "CLEAR_PENDING_TURN" }, () => ({
+			...state,
+			pendingTurn: null,
 			history: historyState,
 		}))
 		.with({ type: "SET_ROTATION" }, (action) => {
@@ -146,31 +167,38 @@ export const reducer = (state: State, action: Action): State => {
 				},
 				selected: null,
 				pendingRotation: null,
+				pendingTurn: null,
+				lastRandomRoll: null,
 				history: historyState,
 			};
 		})
 		.with({ type: "BUY_ITEM" }, (action) => {
 			const { item, price } = action.payload;
-			const purchasedItem =
-				item.type_ === "road" && item.road === "plus" && price === 5
-					? road(
-							ROAD_TYPES[Math.floor(Math.random() * ROAD_TYPES.length)],
-							ROAD_ROTATIONS[
-								Math.floor(Math.random() * ROAD_ROTATIONS.length)
-							],
-						)
-					: item;
+			const isRandomTile =
+				item.type_ === "road" && item.road === "plus" && price === 5;
+			const purchasedItem: Tilable = isRandomTile
+				? state.lastRandomRoll ??
+					road(
+						ROAD_TYPES[Math.floor(Math.random() * ROAD_TYPES.length)],
+						ROAD_ROTATIONS[
+							Math.floor(Math.random() * ROAD_ROTATIONS.length)
+						],
+					)
+				: item;
+
 			const user = state.game.users[state.game.turn];
-			console.log(user);
 			if (user.resources.dollar < price) {
-				console.log("Not enough money");
 				return state;
 			}
 
 			if (user.inventory[toKey(purchasedItem)] === undefined) {
-				console.error("Item not in inventory");
 				return state;
 			}
+
+			// For random tile: save state with lastRandomRoll set to this result so undo restores it
+			const historyForRandom = isRandomTile
+				? [...state.history.slice(-19), { ...state, history: [], lastRandomRoll: purchasedItem }]
+				: historyState;
 
 			return {
 				...state,
@@ -192,11 +220,12 @@ export const reducer = (state: State, action: Action): State => {
 						},
 					},
 				},
-				history: historyState,
+				lastRandomRoll: isRandomTile ? null : state.lastRandomRoll,
+				history: historyForRandom,
 			};
 		})
 		.with({ type: "TURN_TILE" }, (action) => {
-			const { x, y } = action.payload;
+			const { x, y, direction } = action.payload;
 			const user = state.game.users[state.game.turn];
 			const tile = state.game.tiles[`${y}-${x}`];
 
@@ -212,6 +241,9 @@ export const reducer = (state: State, action: Action): State => {
 				console.log("Not enough turns");
 				return state;
 			}
+
+			const delta = direction === "cw" ? 90 : -90;
+			const newRotation = ((tile.content.rotation + delta + 360) % 360) as RoadRotation;
 
 			const updatedGame = {
 				...state.game,
@@ -231,7 +263,7 @@ export const reducer = (state: State, action: Action): State => {
 						...tile,
 						content: {
 							...tile.content,
-							rotation: ((tile.content.rotation + 90) % 360) as RoadRotation,
+							rotation: newRotation,
 						},
 					},
 				},
@@ -240,6 +272,7 @@ export const reducer = (state: State, action: Action): State => {
 			return {
 				...state,
 				game: updateUserProduction(updatedGame, tile.owner),
+				pendingTurn: null,
 				history: historyState,
 			};
 		})

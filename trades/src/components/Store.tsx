@@ -47,7 +47,7 @@ export default function Store({
 					price={5}
 					item={{ type_: "action", action: "turn" }}
 					icon="src/assets/turn.svg"
-					text="Put road on a tile"
+					text="Rotate a road tile 90° (choose CW or CCW)"
 				/>
 				<StoreItem
 					resources={resources}

@@ -48,6 +48,67 @@ button {
   overflow: auto;
 }
 
+#player-balances {
+  display: flex;
+  flex-direction: column;
+  padding: 0.5rem;
+  width: clamp(140px, 16vw, 200px);
+  max-height: calc(100vh - 2rem);
+  overflow: auto;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
+}
+
+.player-balances-title {
+  font-weight: bold;
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+  color: #1a1a1a;
+}
+
+.player-balances-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.player-balance-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  font-size: 0.85rem;
+}
+
+.player-balance-item.player-balance-current {
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.15);
+  font-weight: 600;
+}
+
+.player-balance-label {
+  flex: 1;
+  text-transform: capitalize;
+  color: #1a1a1a;
+}
+
+.player-balance-amount {
+  font-variant-numeric: tabular-nums;
+  min-width: 2.5em;
+  text-align: right;
+}
+
+.player-balance-item.turn-green { background: rgba(67, 160, 71, 0.12); }
+.player-balance-item.turn-orange { background: rgba(251, 140, 0, 0.12); }
+.player-balance-item.turn-blue { background: rgba(30, 136, 229, 0.12); }
+.player-balance-item.turn-red { background: rgba(229, 57, 53, 0.12); }
+
 #controls {
   display: flex;
   flex-direction: column;

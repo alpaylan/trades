@@ -1,6 +1,7 @@
 import "./App.css";
-import Controls from "./components/Controls";
 import Board from "./components/Board";
+import Controls from "./components/Controls";
+import PlayerBalances from "./components/PlayerBalances";
 import { GlobalProvider } from "./logic/State";
 
 function App() {
@@ -11,6 +12,7 @@ function App() {
 				<div id="board-area">
 					<Board />
 				</div>
+				<PlayerBalances />
 			</div>
 		</GlobalProvider>
 	);

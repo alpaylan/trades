@@ -7,6 +7,17 @@ export default function RotationSelector() {
 	if (!state.selected || state.selected.type_ !== "road") {
 		return null;
 	}
+	// Crossroad looks the same at every rotation — no need to choose
+	if (state.selected.road === "plus") {
+		return null;
+	}
+	// Straight road (i) only has two distinct orientations: 0° and 90°
+	const rotations: RoadRotation[] =
+		state.selected.road === "i" ? [0, 90] : [...ROAD_ROTATIONS];
+	const effectiveRotation =
+		state.selected.road === "i" && (state.selected.rotation === 180 || state.selected.rotation === 270)
+			? (state.selected.rotation === 180 ? 0 : 90)
+			: state.selected.rotation;
 
 	return (
 		<div
@@ -23,7 +34,7 @@ export default function RotationSelector() {
 		>
 			<div style={{ fontWeight: "bold" }}>Select Rotation:</div>
 			<div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-				{ROAD_ROTATIONS.map((rotation) => (
+				{rotations.map((rotation) => (
 					<button
 						key={rotation}
 						type="button"
@@ -34,19 +45,19 @@ export default function RotationSelector() {
 							borderColor:
 								state.selected &&
 								state.selected.type_ === "road" &&
-								state.selected.rotation === rotation
+								effectiveRotation === rotation
 									? "#007bff"
 									: "#ccc",
 							backgroundColor:
 								state.selected &&
 								state.selected.type_ === "road" &&
-								state.selected.rotation === rotation
+								effectiveRotation === rotation
 									? "#007bff"
 									: "white",
 							color:
 								state.selected &&
 								state.selected.type_ === "road" &&
-								state.selected.rotation === rotation
+								effectiveRotation === rotation
 									? "white"
 									: "#333",
 							borderRadius: "4px",
