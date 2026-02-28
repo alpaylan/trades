@@ -106,11 +106,24 @@ export default function Tile({
 					const key = `road:${state.selected.road}:${rotation}` as TileKey;
 					purchasedCount += purchasedForUser[key] ?? 0;
 				}
+			} else if (state.selected.type_ === "action") {
+				purchasedCount = purchasedForUser[`action:${state.selected.action}` as TileKey] ?? 0;
 			} else {
 				const key = toKey(state.selected);
 				purchasedCount = purchasedForUser[key] ?? 0;
 			}
 			canClick = purchasedCount > 0;
+		}
+		// Toll action: only roads in player's region, without toll yet
+		if (
+			state.selected.type_ === "action" &&
+			state.selected.action === "toll"
+		) {
+			canClick =
+				canClick &&
+				tile.content.type_ === "road" &&
+				tile.owner === current &&
+				!tile.content.toll;
 		}
 	}
 
@@ -141,10 +154,20 @@ export default function Tile({
 							if (tile.content.type_ === "road") {
 								match(tile_.action)
 									.with("turn", () => {
-										dispatch({
-											type: "SET_PENDING_TURN",
-											payload: { x: tile.x, y: tile.y },
-										});
+										if (tile.content.road === "plus") return;
+										if (tile.content.road === "i") {
+											dispatch({
+												type: "TURN_TILE",
+												payload: { x: tile.x, y: tile.y, direction: "cw" },
+											});
+											return;
+										}
+										if (tile.content.road === "l" || tile.content.road === "t") {
+											dispatch({
+												type: "SET_PENDING_TURN",
+												payload: { x: tile.x, y: tile.y },
+											});
+										}
 									})
 									.with("block", () => {
 										dispatch({
@@ -212,15 +235,66 @@ export default function Tile({
 								}}
 							/>
 						) : null}
+						{tile.toll ? (
+							<span
+								style={{
+									position: "absolute",
+									top: 2,
+									right: 2,
+									width: 6,
+									height: 6,
+									borderRadius: "50%",
+									backgroundColor: "#c62828",
+									pointerEvents: "none",
+								}}
+								aria-hidden="true"
+							/>
+						) : null}
 					</>
 				))
-				.with({ type_: "production" }, (tile) => (
-					<img
-						src={`src/assets/${tile.production}-${tile.level}.svg`}
-						alt={`${tile.production} icon`}
-						style={{ width: "32px", height: "32px" }}
-					/>
-				))
+				.with({ type_: "production" }, (content) =>
+					content.production === "dollar" ? (
+						<span
+							style={{
+								position: "absolute",
+								inset: 0,
+								display: "flex",
+								alignItems: "center",
+								justifyContent: "center",
+								backgroundColor: "white",
+								border: "2px solid #1e1e1e",
+								borderRadius: 3,
+								boxSizing: "border-box",
+							}}
+						>
+							<span
+								style={{
+									display: "flex",
+									flexWrap: "wrap",
+									alignItems: "center",
+									justifyContent: "center",
+									gap: 1,
+								}}
+							>
+								{Array.from({ length: content.level }, (_, i) => (
+									<img
+										key={i}
+										src="src/assets/gold-bar.svg"
+										alt=""
+										style={{ width: 12, height: 6 }}
+										aria-hidden="true"
+									/>
+								))}
+							</span>
+						</span>
+					) : (
+						<img
+							src={`src/assets/${content.production}-${content.level}.svg`}
+							alt={`${content.production} icon`}
+							style={{ width: "32px", height: "32px" }}
+						/>
+					),
+				)
 				.otherwise(() => (
 					<></>
 				))}

@@ -15,12 +15,16 @@ export default function Board() {
 			{Array.from({ length: 18 }, (_, y) => {
 				return (
 					// biome-ignore lint/suspicious/noArrayIndexKey: <explanation>
-					<div style={{ display: "flex", flexDirection: "row" }} key={y}>
+					<div
+						style={{ display: "flex", flexDirection: "row" }}
+						key={y}
+					>
 						{Array.from({ length: 18 }, (_, x) => {
 							const tile = game.tiles[`${y}-${x}`];
 
-							const accessible =
-								accessibles.find((t) => t.x === tile.x && t.y === tile.y)
+							const accessible = accessibles.find(
+								(t) => t.x === tile.x && t.y === tile.y,
+							);
 
 							return Tile({ tile, accessible: accessible ?? null });
 						})}

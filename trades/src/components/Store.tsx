@@ -1,24 +1,53 @@
 import { type ResourceCollection, type Tilable, road } from "../logic/Game";
 import { useGlobalContext } from "../logic/State";
 
+const GOLD_BAR_SRC = "src/assets/gold-bar.svg";
+
+function GoldBars({ count, size = 12 }: { count: number; size?: number }) {
+	return (
+		<span
+			style={{
+				display: "inline-flex",
+				flexWrap: "wrap",
+				gap: 1,
+				alignItems: "center",
+			}}
+		>
+			{Array.from({ length: count }, (_, i) => (
+				<img
+					key={i}
+					src={GOLD_BAR_SRC}
+					alt=""
+					style={{ width: size, height: size / 2 }}
+					aria-hidden="true"
+				/>
+			))}
+		</span>
+	);
+}
+
 function StoreItem({
 	resources,
 	price,
 	item,
 	icon,
 	text,
+	showGoldBars,
 }: {
 	resources: ResourceCollection;
 	price: number;
 	item: Tilable;
 	icon: string;
 	text: string;
+	showGoldBars?: { iconCount: number };
 }) {
 	const { state, dispatch } = useGlobalContext();
 	const current = state.game.turn;
 	const actionsUsed = state.actionsUsedThisTurn ?? 0;
 	const canAct = actionsUsed < 2;
-	const tooltip = `${text} (cost: ${price})`;
+	const tooltip = showGoldBars
+		? `${text} (cost: ${price} gold)`
+		: `${text} (cost: ${price})`;
 
 	const disabled = resources.dollar < price || !canAct;
 
@@ -31,11 +60,13 @@ function StoreItem({
 				if (disabled) return;
 				dispatch({ type: "BUY_ITEM", payload: { item, price } });
 			}}
-			
 		>
-			<img src={icon} alt={`${item.type_} icon`} title={tooltip} />
+			{showGoldBars ? (
+				<GoldBars count={showGoldBars.iconCount} size={16} />
+			) : (
+				<img src={icon} alt={`${item.type_} icon`} title={tooltip} />
+			)}
 			<span>{price}</span>
-			{/* <span>{text}</span> */}
 		</button>
 	);
 }
@@ -126,7 +157,8 @@ export default function Store({
 						level: 1,
 					}}
 					icon="src/assets/dollar-1.svg"
-					text="+$1 production ($5)"
+					text="+1 gold production (5 gold)"
+					showGoldBars={{ iconCount: 1 }}
 				/>
 				<StoreItem
 					resources={resources}
@@ -137,7 +169,8 @@ export default function Store({
 						level: 2,
 					}}
 					icon="src/assets/dollar-2.svg"
-					text="+$2 production ($15)"
+					text="+2 gold production (15 gold)"
+					showGoldBars={{ iconCount: 2 }}
 				/>
 				<StoreItem
 					resources={resources}
@@ -148,7 +181,8 @@ export default function Store({
 						level: 3,
 					}}
 					icon="src/assets/dollar-3.svg"
-					text="+$3 production ($30)"
+					text="+3 gold production (30 gold)"
+					showGoldBars={{ iconCount: 3 }}
 				/>
 			</div>
 		</div>

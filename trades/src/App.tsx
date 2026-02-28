@@ -1,6 +1,8 @@
 import "./App.css";
 import Board from "./components/Board";
 import Controls from "./components/Controls";
+import EventCardOverlay from "./components/EventCardOverlay";
+import EventDeck from "./components/EventDeck";
 import PlayerBalances from "./components/PlayerBalances";
 import { GlobalProvider } from "./logic/State";
 
@@ -14,6 +16,8 @@ function App() {
 				</div>
 				<PlayerBalances />
 			</div>
+			<EventDeck />
+			<EventCardOverlay />
 		</GlobalProvider>
 	);
 }

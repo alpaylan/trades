@@ -1,4 +1,4 @@
-import type { TurnDirection } from "../logic/State";
+import { useState } from "react";
 import { useGlobalContext } from "../logic/State";
 import Inventory from "./Inventory";
 import RotationSelector from "./RotationSelector";
@@ -7,12 +7,20 @@ import Turn from "./Turn";
 
 export default function Controls() {
 	const { state, dispatch } = useGlobalContext();
+	const [hoveredRotation, setHoveredRotation] = useState<90 | 180 | 270 | null>(null);
 
 	const user = state.game.users[state.game.turn];
 	const actionsUsed = state.actionsUsedThisTurn ?? 0;
 	const actionsLeft = Math.max(0, 2 - actionsUsed);
 	const canStartAction =
 		actionsLeft > 0 && !state.endedThisRound[state.game.turn];
+
+	const pt = state.pendingTurn;
+	const tile = pt ? state.game.tiles[`${pt.y}-${pt.x}`] : null;
+	const road = tile?.content.type_ === "road" ? tile.content.road : null;
+	const isLOrT = road === "l" || road === "t";
+	const currentRotation = tile?.content.type_ === "road" ? tile.content.rotation : 0;
+	const previewRotation = hoveredRotation ?? currentRotation;
 
 	return (
 		<div id="controls">
@@ -44,62 +52,96 @@ export default function Controls() {
 			</div>
 			<Inventory inventory={user.inventory} />
 			<RotationSelector />
-			{state.pendingTurn && (
+			{state.pendingTurn && isLOrT && road && (
 				<div
 					style={{
-						display: "flex",
-						flexDirection: "column",
+						display: "inline-flex",
+						alignItems: "center",
 						gap: "6px",
-						padding: "8px",
-						border: "2px solid #333",
-						borderRadius: "8px",
+						padding: "4px 6px",
+						borderRadius: "999px",
 						backgroundColor: "#f0f0f0",
+						marginTop: "6px",
+						fontSize: "11px",
 					}}
 				>
-					<div style={{ fontWeight: "bold", fontSize: "12px" }}>
-						Rotate road at ({state.pendingTurn.x}, {state.pendingTurn.y}) 90°:
+					<span style={{ fontWeight: "bold" }}>Rotate to:</span>
+					<span
+						style={{
+							width: 20,
+							height: 20,
+							borderRadius: 4,
+							border: "1px solid rgba(0,0,0,0.2)",
+							display: "inline-flex",
+							alignItems: "center",
+							justifyContent: "center",
+							backgroundColor: "white",
+						}}
+						aria-hidden="true"
+					>
+						<img
+							src={`src/assets/road-${road}.svg`}
+							alt=""
+							style={{
+								width: 14,
+								height: 14,
+								transform: `rotate(${previewRotation}deg)`,
+							}}
+						/>
+					</span>
+					<div style={{ display: "inline-flex", gap: "4px", flexWrap: "wrap" }}>
+						{([90, 180, 270] as const).map((r) => (
+							<button
+								key={r}
+								type="button"
+								onClick={() => {
+									dispatch({
+										type: "TURN_TILE",
+										payload: { x: pt!.x, y: pt!.y, rotation: r },
+									});
+									setHoveredRotation(null);
+								}}
+								onMouseEnter={() => setHoveredRotation(r)}
+								onMouseLeave={() => setHoveredRotation(null)}
+								style={{
+									width: 26,
+									height: 26,
+									borderRadius: "999px",
+									border: "1px solid",
+									borderColor: previewRotation === r ? "#1976d2" : "#ccc",
+									backgroundColor: previewRotation === r ? "#1976d2" : "white",
+									color: previewRotation === r ? "white" : "#333",
+									display: "inline-flex",
+									alignItems: "center",
+									justifyContent: "center",
+									fontSize: "10px",
+									cursor: "pointer",
+									padding: 0,
+								}}
+								title={`Rotate to ${r}°`}
+							>
+								{r}°
+							</button>
+						))}
 					</div>
-					<div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-						<button
-							type="button"
-							onClick={() =>
-								dispatch({
-									type: "TURN_TILE",
-									payload: {
-										x: state.pendingTurn!.x,
-										y: state.pendingTurn!.y,
-										direction: "cw" as TurnDirection,
-									},
-								})
-							}
-							title="Rotate 90° clockwise"
-						>
-							CW
-						</button>
-						<button
-							type="button"
-							onClick={() =>
-								dispatch({
-									type: "TURN_TILE",
-									payload: {
-										x: state.pendingTurn!.x,
-										y: state.pendingTurn!.y,
-										direction: "ccw" as TurnDirection,
-									},
-								})
-							}
-							title="Rotate 90° counter-clockwise"
-						>
-							CCW
-						</button>
-						<button
-							type="button"
-							onClick={() => dispatch({ type: "CLEAR_PENDING_TURN" })}
-							title="Cancel"
-						>
-							Cancel
-						</button>
-					</div>
+					<button
+						type="button"
+						onClick={() => {
+							dispatch({ type: "CLEAR_PENDING_TURN" });
+							setHoveredRotation(null);
+						}}
+						style={{
+							padding: "2px 8px",
+							fontSize: "10px",
+							borderRadius: "999px",
+							border: "1px solid #ccc",
+							backgroundColor: "white",
+							cursor: "pointer",
+						}}
+						title="Cancel"
+					>
+						Cancel
+					</button>
 				</div>
 			)}
 			<Store resources={user.resources} />

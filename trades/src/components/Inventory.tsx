@@ -9,6 +9,8 @@ import {
 } from "../logic/Game";
 import { useGlobalContext } from "../logic/State";
 
+const GOLD_BAR_SRC = "src/assets/gold-bar.svg";
+
 function tileToIcon(tile: Tilable): string {
 	switch (tile.type_) {
 		case "action":
@@ -20,6 +22,29 @@ function tileToIcon(tile: Tilable): string {
 		default:
 			throw new Error("Unknown tile type");
 	}
+}
+
+function GoldBars({ count, size = 14 }: { count: number; size?: number }) {
+	return (
+		<span
+			style={{
+				display: "inline-flex",
+				flexWrap: "wrap",
+				gap: 1,
+				alignItems: "center",
+			}}
+		>
+			{Array.from({ length: count }, (_, i) => (
+				<img
+					key={i}
+					src={GOLD_BAR_SRC}
+					alt=""
+					style={{ width: size, height: size / 2 }}
+					aria-hidden="true"
+				/>
+			))}
+		</span>
+	);
 }
 
 function InventoryItem({
@@ -40,9 +65,12 @@ function InventoryItem({
 		.with({ type_: "production" }, (tile) => `${tile.production} icon`)
 		.exhaustive();
 
+	const isGoldProduction =
+		tile.type_ === "production" && tile.production === "dollar";
+
 	return (
 		<div
-			className={`inventory-item ${selected ? "tilting" : ""}`}
+			className={`inventory-item ${selected ? "tilting" : ""} ${isGoldProduction ? "inventory-item--gold" : ""}`}
 			style={{
 				display: "flex",
 				flexDirection: "column",
@@ -54,7 +82,11 @@ function InventoryItem({
 				onClick={placeTile}
 				style={{ padding: 0, border: "none", background: "none" }}
 			>
-				<img src={src} alt={alt} />
+				{isGoldProduction ? (
+					<GoldBars count={tile.level} size={16} />
+				) : (
+					<img src={src} alt={alt} />
+				)}
 				<span
 					style={{
 						position: "absolute",

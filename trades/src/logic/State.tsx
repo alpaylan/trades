@@ -61,8 +61,19 @@ export type State = {
 	endedThisRound: Record<TileOwner, boolean>;
 	/** Items bought during the current turn of each player that haven't been used yet. */
 	purchasedThisTurn: PurchasedThisTurn;
+	/** Remaining event cards in the deck (starts at 10, decreases each round). */
+	eventCardsRemaining: number;
+	/** When remaining hits this number (1–5), show "End of Phase 1" card. */
+	eventCardTriggerPosition: number;
+	/** Whether the event card overlay is currently visible. */
+	showEventCard: boolean;
+	/** Content of the drawn event card: blank or "End of Phase 1". */
+	eventCardContent: "blank" | "end_of_phase_1";
 	history: State[];
 };
+
+const randomTriggerPosition = () =>
+	Math.floor(Math.random() * 5) + 1;
 
 const initialState = (): State => ({
 	game: game(),
@@ -73,6 +84,10 @@ const initialState = (): State => ({
 	actionsUsedThisTurn: 0,
 	endedThisRound: initialEndedThisRound(),
 	purchasedThisTurn: initialPurchasedThisTurn(),
+	eventCardsRemaining: 25,
+	eventCardTriggerPosition: randomTriggerPosition(),
+	showEventCard: false,
+	eventCardContent: "blank",
 	history: [],
 });
 
@@ -85,11 +100,12 @@ export type Action =
 	| { type: "BUY_ITEM"; payload: { item: Tilable; price: number } }
 	| { type: "SET_PENDING_TURN"; payload: { x: number; y: number } }
 	| { type: "CLEAR_PENDING_TURN" }
-	| { type: "TURN_TILE"; payload: { x: number; y: number; direction: TurnDirection } }
+	| { type: "TURN_TILE"; payload: { x: number; y: number; direction?: TurnDirection; rotation?: 90 | 180 | 270 } }
 	| { type: "BLOCK_TILE"; payload: { x: number; y: number } }
 	| { type: "UNBLOCK_TILE"; payload: { x: number; y: number } }
 	| { type: "TOLL_TILE"; payload: { x: number; y: number } }
-	| { type: "PLACE_TILE"; payload: { x: number; y: number; tile: Tilable } };
+	| { type: "PLACE_TILE"; payload: { x: number; y: number; tile: Tilable } }
+	| { type: "DISMISS_EVENT_CARD" };
 
 export const reducer = (state: State, action: Action): State => {
 	const updateUserProduction = (gameState: Game, owner: Game["turn"]) => ({
@@ -105,7 +121,7 @@ export const reducer = (state: State, action: Action): State => {
 
 	// Helper to save state to history (only for actions that change the game state)
 	const shouldSaveToHistory = (action: Action): boolean => {
-		return !["SELECT_TILE", "UNSELECT_TILE", "SET_ROTATION", "SET_PENDING_TURN", "CLEAR_PENDING_TURN", "UNDO"].includes(action.type);
+		return !["SELECT_TILE", "UNSELECT_TILE", "SET_ROTATION", "SET_PENDING_TURN", "CLEAR_PENDING_TURN", "DISMISS_EVENT_CARD", "UNDO"].includes(action.type);
 	};
 
 	// Save current state to history before making changes (except for non-game-changing actions)
@@ -209,6 +225,7 @@ export const reducer = (state: State, action: Action): State => {
 			// - turn moves to the next player in order
 			if (allEndedThisRound) {
 				const baseGame = state.game;
+				const newEventCards = Math.max(0, state.eventCardsRemaining - 1);
 
 				const newUsers: typeof baseGame.users = { ...baseGame.users };
 				for (const owner of TILE_OWNERS) {
@@ -233,15 +250,22 @@ export const reducer = (state: State, action: Action): State => {
 					};
 				}
 
-				const nextTurn = next(currentTurn);
+				const nextRound = (baseGame.round ?? 1) + 1;
+				const roundStarter = TILE_OWNERS[(nextRound - 1) % TILE_OWNERS.length];
+
+				const drawCard = state.eventCardsRemaining > 0;
+				const eventCardContent: "blank" | "end_of_phase_1" =
+					drawCard && newEventCards === state.eventCardTriggerPosition
+						? "end_of_phase_1"
+						: "blank";
 
 				return {
 					...state,
 					game: {
 						...baseGame,
-						turn: nextTurn,
+						turn: roundStarter,
 						turns: baseGame.turns + 1,
-						round: (baseGame.round ?? 1) + 1,
+						round: nextRound,
 						users: newUsers,
 					},
 					selected: null,
@@ -251,6 +275,9 @@ export const reducer = (state: State, action: Action): State => {
 					actionsUsedThisTurn: 0,
 					endedThisRound: initialEndedThisRound(),
 					purchasedThisTurn: initialPurchasedThisTurn(),
+					eventCardsRemaining: newEventCards,
+					showEventCard: drawCard,
+					eventCardContent,
 					history: historyState,
 				};
 			}
@@ -346,7 +373,7 @@ export const reducer = (state: State, action: Action): State => {
 			};
 		})
 		.with({ type: "TURN_TILE" }, (action) => {
-			const { x, y, direction } = action.payload;
+			const { x, y, direction, rotation } = action.payload;
 			const user = state.game.users[state.game.turn];
 			const tile = state.game.tiles[`${y}-${x}`];
 			const actionsUsed = state.actionsUsedThisTurn;
@@ -354,25 +381,27 @@ export const reducer = (state: State, action: Action): State => {
 			const userPurchased = state.purchasedThisTurn[user.color] ?? {};
 			const fromPurchaseThisTurn = (userPurchased[inventoryKey] ?? 0) > 0;
 
-			if (!fromPurchaseThisTurn && (actionsUsed >= 2 || ended)) {
+			if (!fromPurchaseThisTurn && actionsUsed >= 2) {
 				return state;
 			}
 
 			if (!tile.owned) {
-				console.log("Tile is free");
 				return state;
 			}
 			if (tile.content.type_ !== "road") {
-				console.log("Tile is not a road");
+				return state;
+			}
+			if (tile.content.road === "plus") {
 				return state;
 			}
 			if (user.inventory["action:turn"] <= 0) {
-				console.log("Not enough turns");
 				return state;
 			}
 
-			const delta = direction === "cw" ? 90 : -90;
-			const newRotation = ((tile.content.rotation + delta + 360) % 360) as RoadRotation;
+			const newRotation: RoadRotation =
+				rotation !== undefined
+					? rotation
+					: ((tile.content.rotation + (direction === "ccw" ? -90 : 90) + 360) % 360) as RoadRotation;
 
 			const updatedGame = {
 				...state.game,
@@ -538,15 +567,18 @@ export const reducer = (state: State, action: Action): State => {
 			}
 
 			if (!tile.owned) {
-				console.log("Tile is free");
+				return state;
+			}
+			if (tile.owner !== user.color) {
 				return state;
 			}
 			if (tile.content.type_ !== "road") {
-				console.log("Tile is not a road");
 				return state;
 			}
-			if (tile.content.toll && user.inventory["action:toll"] <= 0) {
-				console.log("Not enough toll actions");
+			if (tile.content.toll) {
+				return state;
+			}
+			if (user.inventory["action:toll"] <= 0) {
 				return state;
 			}
 
@@ -587,7 +619,7 @@ export const reducer = (state: State, action: Action): State => {
 							...tile,
 							content: {
 								...tile.content,
-								toll: !tile.content.toll,
+								toll: 1,
 							},
 						},
 					},
@@ -709,6 +741,11 @@ export const reducer = (state: State, action: Action): State => {
 				history: historyState,
 			};
 		})
+		.with({ type: "DISMISS_EVENT_CARD" }, () => ({
+			...state,
+			showEventCard: false,
+			eventCardContent: "blank",
+		}))
 		.exhaustive();
 };
 
