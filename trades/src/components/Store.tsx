@@ -1,7 +1,7 @@
 import { type ResourceCollection, type Tilable, road } from "../logic/Game";
 import { useGlobalContext } from "../logic/State";
 
-const GOLD_BAR_SRC = "src/assets/gold-bar.svg";
+const GOLD_BAR_SRC = "/assets/gold-bar.svg";
 
 function GoldBars({ count, size = 12 }: { count: number; size?: number }) {
 	return (
@@ -114,28 +114,28 @@ export default function Store({
 					resources={resources}
 					price={5}
 					item={{ type_: "action", action: "turn" }}
-					icon="src/assets/turn.svg"
+					icon="/assets/turn.svg"
 					text="Rotate a road tile 90° (choose CW or CCW)"
 				/>
 				<StoreItem
 					resources={resources}
 					price={5}
 					item={{ type_: "action", action: "toll" }}
-					icon="src/assets/toll.svg"
+					icon="/assets/toll.svg"
 					text="Put toll on a tile"
 				/>
 				<StoreItem
 					resources={resources}
 					price={5}
 					item={{ type_: "action", action: "block" }}
-					icon="src/assets/block.svg"
+					icon="/assets/block.svg"
 					text="Block a tile"
 				/>
 				<StoreItem
 					resources={resources}
 					price={5}
 					item={{ type_: "action", action: "unblock" }}
-					icon="src/assets/unblock.svg"
+					icon="/assets/unblock.svg"
 					text="Unblock a tile"
 				/>
 			</div>
@@ -155,37 +155,37 @@ export default function Store({
 					resources={resources}
 					price={2}
 					item={road("i", 0)}
-					icon="src/assets/road-i.svg"
+					icon="/assets/road-i.svg"
 					text="Straight road ($2)"
 				/>
 				<StoreItem
 					resources={resources}
 					price={3}
 					item={road("l", 0)}
-					icon="src/assets/road-l.svg"
+					icon="/assets/road-l.svg"
 					text="L road ($3)"
 				/>
 				<StoreItem
 					resources={resources}
 					price={5}
 					item={road("t", 0)}
-					icon="src/assets/road-t.svg"
+					icon="/assets/road-t.svg"
 					text="T road ($5)"
 				/>
 				<StoreItem
 					resources={resources}
 					price={8}
 					item={road("plus", 0)}
-					icon="src/assets/road-plus.svg"
+					icon="/assets/road-plus.svg"
 					text="Crossroad ($8)"
 				/>
 				<StoreItem
 					resources={resources}
 					price={5}
 					item={road("plus", 0)}
-					icon="src/assets/question.svg"
+					icon="/assets/question.svg"
 					// item={(n: number) => road(ROAD_TYPES[n], 0)}
-					// icon={(n: number) => `src/assets/road-${ROAD_TYPES[n]}.svg`}
+					// icon={(n: number) => `/assets/road-${ROAD_TYPES[n]}.svg`}
 					text="Random ($5)"
 				/>
 			</div>
@@ -209,7 +209,7 @@ export default function Store({
 						production: "dollar",
 						level: 1,
 					}}
-					icon="src/assets/dollar-1.svg"
+					icon="/assets/dollar-1.svg"
 					text="+1 gold production (5 gold)"
 					showGoldBars={{ iconCount: 1 }}
 				/>
@@ -221,7 +221,7 @@ export default function Store({
 						production: "dollar",
 						level: 2,
 					}}
-					icon="src/assets/dollar-2.svg"
+					icon="/assets/dollar-2.svg"
 					text="+2 gold production (15 gold)"
 					showGoldBars={{ iconCount: 2 }}
 				/>
@@ -233,7 +233,7 @@ export default function Store({
 						production: "dollar",
 						level: 3,
 					}}
-					icon="src/assets/dollar-3.svg"
+					icon="/assets/dollar-3.svg"
 					text="+3 gold production (30 gold)"
 					showGoldBars={{ iconCount: 3 }}
 				/>

@@ -10,10 +10,10 @@ const EVENT_CARD_IMAGES: Record<
 	"end_of_phase_1" | "no_road" | "black_friday" | "gift",
 	string
 > = {
-	end_of_phase_1: "src/assets/event-card-end-of-phase-1.png",
-	no_road: "src/assets/event-card-no-road.png",
-	black_friday: "src/assets/event-card-black-friday.png",
-	gift: "src/assets/event-card-gift.png",
+	end_of_phase_1: "/assets/event-card-end-of-phase-1.png",
+	no_road: "/assets/event-card-no-road.png",
+	black_friday: "/assets/event-card-black-friday.png",
+	gift: "/assets/event-card-gift.png",
 };
 
 export default function EventDeck() {

@@ -8,15 +8,15 @@ const SQUARE_GRID = [
 
 const CARD_IMAGES: Record<string, { src: string; alt: string }> = {
 	end_of_phase_1: {
-		src: "src/assets/event-card-end-of-phase-1.png",
+		src: "/assets/event-card-end-of-phase-1.png",
 		alt: "End of Phase 1",
 	},
-	no_road: { src: "src/assets/event-card-no-road.png", alt: "No Road" },
+	no_road: { src: "/assets/event-card-no-road.png", alt: "No Road" },
 	black_friday: {
-		src: "src/assets/event-card-black-friday.png",
+		src: "/assets/event-card-black-friday.png",
 		alt: "Black Friday",
 	},
-	gift: { src: "src/assets/event-card-gift.png", alt: "Gift" },
+	gift: { src: "/assets/event-card-gift.png", alt: "Gift" },
 };
 
 export default function EventCardOverlay() {

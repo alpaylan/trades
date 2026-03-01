@@ -37,7 +37,7 @@ export default function PlayerBalances() {
 							</span>
 							<span className="player-balance-amount">
 								<img
-									src="src/assets/gold-bar.svg"
+									src="/assets/gold-bar.svg"
 									alt=""
 									className="player-balance-gold-icon"
 									aria-hidden="true"

@@ -84,7 +84,7 @@ export default function Controls() {
 						aria-hidden="true"
 					>
 						<img
-							src={`src/assets/road-${road}.svg`}
+							src={`/assets/road-${road}.svg`}
 							alt=""
 							style={{
 								width: 14,

@@ -47,7 +47,7 @@ export default function RotationSelector() {
 				aria-hidden="true"
 			>
 				<img
-					src={`src/assets/road-${state.selected.road}.svg`}
+					src={`/assets/road-${state.selected.road}.svg`}
 					alt=""
 					style={{
 						width: 14,

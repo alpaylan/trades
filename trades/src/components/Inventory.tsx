@@ -9,16 +9,16 @@ import {
 } from "../logic/Game";
 import { useGlobalContext } from "../logic/State";
 
-const GOLD_BAR_SRC = "src/assets/gold-bar.svg";
+const GOLD_BAR_SRC = "/assets/gold-bar.svg";
 
 function tileToIcon(tile: Tilable): string {
 	switch (tile.type_) {
 		case "action":
-			return `src/assets/${tile.action}.svg`;
+			return `/assets/${tile.action}.svg`;
 		case "road":
-			return `src/assets/road-${tile.road}.svg`;
+			return `/assets/road-${tile.road}.svg`;
 		case "production":
-			return `src/assets/${tile.production}-${tile.level}.svg`;
+			return `/assets/${tile.production}-${tile.level}.svg`;
 		default:
 			throw new Error("Unknown tile type");
 	}

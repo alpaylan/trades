@@ -234,7 +234,7 @@ export default function Tile({
 				.with({ type_: "road" }, (tile) => (
 					<>
 						<img
-							src={`src/assets/road-${tile.road}.svg`}
+							src={`/assets/road-${tile.road}.svg`}
 							alt={`${tile.road} icon`}
 							style={{
 								width: "32px",
@@ -244,7 +244,7 @@ export default function Tile({
 						/>
 						{tile.blocked ? (
 							<img
-								src="src/assets/block.svg"
+								src="/assets/block.svg"
 								alt="blocked icon"
 								style={{
 									position: "absolute",
@@ -301,7 +301,7 @@ export default function Tile({
 								{Array.from({ length: content.level }, (_, i) => (
 									<img
 										key={i}
-										src="src/assets/gold-bar.svg"
+										src="/assets/gold-bar.svg"
 										alt=""
 										style={{ width: 12, height: 6 }}
 										aria-hidden="true"
@@ -311,7 +311,7 @@ export default function Tile({
 						</span>
 					) : (
 						<img
-							src={`src/assets/${content.production}-${content.level}.svg`}
+							src={`/assets/${content.production}-${content.level}.svg`}
 							alt={`${content.production} icon`}
 							style={{ width: "32px", height: "32px" }}
 						/>
