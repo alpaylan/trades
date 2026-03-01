@@ -47,6 +47,13 @@ const initialPurchasedThisTurn = (): PurchasedThisTurn => ({
 	red: {},
 });
 
+const initialGiftReceivedThisRound = (): Record<TileOwner, boolean> => ({
+	green: false,
+	orange: false,
+	blue: false,
+	red: false,
+});
+
 export type State = {
 	game: Game;
 	selected: Tilable | null;
@@ -65,10 +72,20 @@ export type State = {
 	eventCardsRemaining: number;
 	/** When remaining hits this number (1–5), show "End of Phase 1" card. */
 	eventCardTriggerPosition: number;
+	/** TODO: Remove after testing. No Road card shows on this one of first 3 draws (1, 2, or 3). */
+	noRoadTestPosition: 1 | 2 | 3;
 	/** Whether the event card overlay is currently visible. */
 	showEventCard: boolean;
-	/** Content of the drawn event card: blank or "End of Phase 1". */
-	eventCardContent: "blank" | "end_of_phase_1";
+	/** Content of the drawn event card. */
+	eventCardContent: "blank" | "end_of_phase_1" | "no_road" | "black_friday" | "gift";
+	/** When true, round has ended and we're showing the event card; production runs on dismiss. */
+	pendingRoundEnd: boolean;
+	/** Event effects active for the current round. */
+	activeEventEffects: { noRoad: boolean; blackFriday: boolean; gift: boolean };
+	/** Which players have received their free action tile this round (Gift card). */
+	giftReceivedThisRound: Record<TileOwner, boolean>;
+	/** Last event card drawn (shown next to deck after dismiss). null until first card. */
+	lastDrawnEventCard: "blank" | "end_of_phase_1" | "no_road" | "black_friday" | "gift" | null;
 	history: State[];
 };
 
@@ -86,8 +103,13 @@ const initialState = (): State => ({
 	purchasedThisTurn: initialPurchasedThisTurn(),
 	eventCardsRemaining: 25,
 	eventCardTriggerPosition: randomTriggerPosition(),
+	noRoadTestPosition: (Math.floor(Math.random() * 3) + 1) as 1 | 2 | 3,
 	showEventCard: false,
 	eventCardContent: "blank",
+	pendingRoundEnd: false,
+	activeEventEffects: { noRoad: false, blackFriday: false, gift: false },
+	giftReceivedThisRound: initialGiftReceivedThisRound(),
+	lastDrawnEventCard: null,
 	history: [],
 });
 
@@ -105,7 +127,8 @@ export type Action =
 	| { type: "UNBLOCK_TILE"; payload: { x: number; y: number } }
 	| { type: "TOLL_TILE"; payload: { x: number; y: number } }
 	| { type: "PLACE_TILE"; payload: { x: number; y: number; tile: Tilable } }
-	| { type: "DISMISS_EVENT_CARD" };
+	| { type: "DISMISS_EVENT_CARD" }
+	| { type: "SHOW_EVENT_CARD_PREVIEW" };
 
 export const reducer = (state: State, action: Action): State => {
 	const updateUserProduction = (gameState: Game, owner: Game["turn"]) => ({
@@ -219,65 +242,86 @@ export const reducer = (state: State, action: Action): State => {
 				return candidate;
 			};
 
-			// If all players ended this round, start a new round:
-			// - everyone receives their full production
-			// - round action counters and flags reset
-			// - turn moves to the next player in order
+			// If all players ended this round: show event card first; production runs on dismiss
 			if (allEndedThisRound) {
 				const baseGame = state.game;
 				const newEventCards = Math.max(0, state.eventCardsRemaining - 1);
+				const drawCard = state.eventCardsRemaining > 0;
+				// TODO: Remove test overrides after testing. 2=Gift, 3=BlackFriday, 4=NoRoad, 5=EndOfPhase1
+				const cardIndex = 26 - state.eventCardsRemaining;
+				const eventCardContent: "blank" | "end_of_phase_1" | "no_road" | "black_friday" | "gift" =
+					!drawCard
+						? "blank"
+						: cardIndex === 2
+							? "gift"
+							: cardIndex === 3
+								? "black_friday"
+								: cardIndex === 4
+									? "no_road"
+									: cardIndex === 5
+										? "end_of_phase_1"
+										: newEventCards === state.eventCardTriggerPosition
+											? "end_of_phase_1"
+											: "blank";
 
-				const newUsers: typeof baseGame.users = { ...baseGame.users };
-				for (const owner of TILE_OWNERS) {
-					const user = baseGame.users[owner];
-					const production = calculateUserProduction(baseGame, owner);
-					const addedResources = RESOURCE_TYPES.reduce(
-						(acc, resource) => {
-							acc[resource] =
-								user.resources[resource] + production[resource];
-							return acc;
+				// No card to draw: apply production and advance immediately
+				if (!drawCard) {
+					const nextRound = (baseGame.round ?? 1) + 1;
+					const roundStarter = TILE_OWNERS[(nextRound - 1) % TILE_OWNERS.length];
+					const newUsers: typeof baseGame.users = { ...baseGame.users };
+					for (const owner of TILE_OWNERS) {
+						const user = baseGame.users[owner];
+						const production = calculateUserProduction(baseGame, owner);
+						const addedResources = RESOURCE_TYPES.reduce(
+							(acc, resource) => {
+								acc[resource] = user.resources[resource] + production[resource];
+								return acc;
+							},
+							zero(),
+						);
+						newUsers[owner] = {
+							...user,
+							production,
+							resources: { ...user.resources, ...addedResources },
+						};
+					}
+					return {
+						...state,
+						game: {
+							...baseGame,
+							turn: roundStarter,
+							turns: baseGame.turns + 1,
+							round: nextRound,
+							users: newUsers,
 						},
-						zero(),
-					);
-
-					newUsers[owner] = {
-						...user,
-						production,
-						resources: {
-							...user.resources,
-							...addedResources,
-						},
+						selected: null,
+						pendingRotation: null,
+						pendingTurn: null,
+						lastRandomRoll: null,
+						actionsUsedThisTurn: 0,
+						endedThisRound: initialEndedThisRound(),
+						purchasedThisTurn: initialPurchasedThisTurn(),
+						eventCardsRemaining: newEventCards,
+						activeEventEffects: { noRoad: false, blackFriday: false, gift: false },
+						giftReceivedThisRound: initialGiftReceivedThisRound(),
+						history: historyState,
 					};
 				}
 
-				const nextRound = (baseGame.round ?? 1) + 1;
-				const roundStarter = TILE_OWNERS[(nextRound - 1) % TILE_OWNERS.length];
-
-				const drawCard = state.eventCardsRemaining > 0;
-				const eventCardContent: "blank" | "end_of_phase_1" =
-					drawCard && newEventCards === state.eventCardTriggerPosition
-						? "end_of_phase_1"
-						: "blank";
-
 				return {
 					...state,
-					game: {
-						...baseGame,
-						turn: roundStarter,
-						turns: baseGame.turns + 1,
-						round: nextRound,
-						users: newUsers,
-					},
+					game: baseGame,
 					selected: null,
 					pendingRotation: null,
 					pendingTurn: null,
 					lastRandomRoll: null,
 					actionsUsedThisTurn: 0,
-					endedThisRound: initialEndedThisRound(),
-					purchasedThisTurn: initialPurchasedThisTurn(),
+					endedThisRound,
+					purchasedThisTurn: purchasedClearedForCurrent,
 					eventCardsRemaining: newEventCards,
-					showEventCard: drawCard,
+					showEventCard: true,
 					eventCardContent,
+					pendingRoundEnd: true,
 					history: historyState,
 				};
 			}
@@ -304,6 +348,17 @@ export const reducer = (state: State, action: Action): State => {
 		})
 		.with({ type: "BUY_ITEM" }, (action) => {
 			const { item, price } = action.payload;
+			const user = state.game.users[state.game.turn];
+			const giftPending =
+				state.activeEventEffects?.gift &&
+				!state.giftReceivedThisRound?.[user.color];
+			const isFreeActionTile =
+				item.type_ === "action" && giftPending;
+			const effectivePrice = isFreeActionTile
+				? 0
+				: state.activeEventEffects?.blackFriday
+					? Math.max(0, price - 1)
+					: price;
 			const isRandomTile =
 				item.type_ === "road" && item.road === "plus" && price === 5;
 			const purchasedItem: Tilable = isRandomTile
@@ -315,14 +370,12 @@ export const reducer = (state: State, action: Action): State => {
 						],
 					)
 				: item;
-
-			const user = state.game.users[state.game.turn];
 			// Enforce per-turn action limit (max 2)
 			if (state.actionsUsedThisTurn >= 2) {
 				return state;
 			}
 
-			if (user.resources.dollar < price) {
+			if (user.resources.dollar < effectivePrice) {
 				return state;
 			}
 
@@ -340,6 +393,11 @@ export const reducer = (state: State, action: Action): State => {
 				...state.purchasedThisTurn,
 				[user.color]: updatedUserPurchased,
 			};
+
+			const giftReceivedThisRound =
+				isFreeActionTile
+					? { ...state.giftReceivedThisRound, [user.color]: true }
+					: state.giftReceivedThisRound;
 
 			// For random tile: save state with lastRandomRoll set to this result so undo restores it
 			const historyForRandom = isRandomTile
@@ -361,7 +419,7 @@ export const reducer = (state: State, action: Action): State => {
 							},
 							resources: {
 								...user.resources,
-								dollar: user.resources.dollar - price,
+								dollar: user.resources.dollar - effectivePrice,
 							},
 						},
 					},
@@ -369,6 +427,7 @@ export const reducer = (state: State, action: Action): State => {
 				lastRandomRoll: isRandomTile ? null : state.lastRandomRoll,
 				actionsUsedThisTurn: state.actionsUsedThisTurn + 1,
 				purchasedThisTurn,
+				giftReceivedThisRound,
 				history: historyForRandom,
 			};
 		})
@@ -638,11 +697,12 @@ export const reducer = (state: State, action: Action): State => {
 			const actionsUsed = state.actionsUsedThisTurn;
 
 			if (!currentTile.owned) {
-				console.log("Tile is not owned");
 				return state;
 			}
 			if (currentTile.owner !== user.color) {
-				console.log("Tile is not owned by user");
+				return state;
+			}
+			if (tile.type_ === "road" && state.activeEventEffects?.noRoad) {
 				return state;
 			}
 
@@ -741,11 +801,84 @@ export const reducer = (state: State, action: Action): State => {
 				history: historyState,
 			};
 		})
-		.with({ type: "DISMISS_EVENT_CARD" }, () => ({
-			...state,
-			showEventCard: false,
-			eventCardContent: "blank",
-		}))
+		.with({ type: "DISMISS_EVENT_CARD" }, () => {
+			if (!state.pendingRoundEnd) {
+				return {
+					...state,
+					showEventCard: false,
+					eventCardContent: "blank",
+					history: historyState,
+				};
+			}
+			// Apply production (card effect applied here when we have more card types) and advance round
+			const baseGame = state.game;
+			const nextRound = (baseGame.round ?? 1) + 1;
+			const roundStarter = TILE_OWNERS[(nextRound - 1) % TILE_OWNERS.length];
+
+			const newUsers: typeof baseGame.users = { ...baseGame.users };
+			for (const owner of TILE_OWNERS) {
+				const user = baseGame.users[owner];
+				const production = calculateUserProduction(baseGame, owner);
+				const addedResources = RESOURCE_TYPES.reduce(
+					(acc, resource) => {
+						acc[resource] =
+							user.resources[resource] + production[resource];
+						return acc;
+					},
+					zero(),
+				);
+				newUsers[owner] = {
+					...user,
+					production,
+					resources: {
+						...user.resources,
+						...addedResources,
+					},
+				};
+			}
+
+			const activeEventEffects = {
+				noRoad: state.eventCardContent === "no_road",
+				blackFriday: state.eventCardContent === "black_friday",
+				gift: state.eventCardContent === "gift",
+			};
+
+			return {
+				...state,
+				game: {
+					...baseGame,
+					turn: roundStarter,
+					turns: baseGame.turns + 1,
+					round: nextRound,
+					users: newUsers,
+				},
+				selected: null,
+				pendingRotation: null,
+				pendingTurn: null,
+				lastRandomRoll: null,
+				actionsUsedThisTurn: 0,
+				endedThisRound: initialEndedThisRound(),
+				purchasedThisTurn: initialPurchasedThisTurn(),
+				showEventCard: false,
+				eventCardContent: "blank",
+				pendingRoundEnd: false,
+				activeEventEffects,
+				giftReceivedThisRound: initialGiftReceivedThisRound(),
+				lastDrawnEventCard: state.eventCardContent,
+				history: historyState,
+			};
+		})
+		.with({ type: "SHOW_EVENT_CARD_PREVIEW" }, () => {
+			if (!state.lastDrawnEventCard || state.lastDrawnEventCard === "blank") {
+				return state;
+			}
+			return {
+				...state,
+				showEventCard: true,
+				eventCardContent: state.lastDrawnEventCard,
+				pendingRoundEnd: false,
+			};
+		})
 		.exhaustive();
 };
 

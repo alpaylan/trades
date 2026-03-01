@@ -71,7 +71,13 @@ export default function Tile({
 	}
 
 	const tooltip = match(tile.content)
-		.with({ type_: "empty" }, () => `Empty tile (owner: ${tile.owner})`)
+		.with({ type_: "empty" }, () =>
+			state.selected?.type_ === "road" &&
+			accessible &&
+			state.activeEventEffects?.noRoad
+				? "Road placement disabled (No Road event)"
+				: `Empty tile (owner: ${tile.owner})`,
+		)
 		.with({ type_: "hall" }, (content) => `City hall (level ${content.level})`)
 		.with(
 			{ type_: "road" },
@@ -124,6 +130,21 @@ export default function Tile({
 				tile.content.type_ === "road" &&
 				tile.owner === current &&
 				!tile.content.toll;
+		}
+		// No Road event: cannot place road tiles this round
+		if (
+			state.selected.type_ === "road" &&
+			accessibleAndFree &&
+			state.activeEventEffects?.noRoad
+		) {
+			canClick = false;
+		}
+		// Gift event: must take free action tile first; disable all board actions
+		if (
+			state.activeEventEffects?.gift &&
+			!state.giftReceivedThisRound?.[current]
+		) {
+			canClick = false;
 		}
 	}
 

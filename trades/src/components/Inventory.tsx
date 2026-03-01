@@ -117,8 +117,18 @@ export default function Inventory({
 	const ended = state.endedThisRound[current];
 	const canStartAction = actionsUsed < 2 && !ended;
 	const purchasedForUser = state.purchasedThisTurn[current] ?? {};
+	const giftPending =
+		state.activeEventEffects?.gift &&
+		!state.giftReceivedThisRound?.[current];
 	return (
-		<div id="inventory">
+		<div
+			id="inventory"
+			style={
+				giftPending
+					? { opacity: 0.5, pointerEvents: "none" as const }
+					: undefined
+			}
+		>
 			{Object.keys(inventory)
 				.map((tileKey) => [tileKey, toTilable(tileKey as TileKey)] as const)
 				.map(

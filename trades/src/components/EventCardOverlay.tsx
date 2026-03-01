@@ -6,10 +6,26 @@ const SQUARE_GRID = [
 	[2, 3],
 ];
 
+const CARD_IMAGES: Record<string, { src: string; alt: string }> = {
+	end_of_phase_1: {
+		src: "src/assets/event-card-end-of-phase-1.png",
+		alt: "End of Phase 1",
+	},
+	no_road: { src: "src/assets/event-card-no-road.png", alt: "No Road" },
+	black_friday: {
+		src: "src/assets/event-card-black-friday.png",
+		alt: "Black Friday",
+	},
+	gift: { src: "src/assets/event-card-gift.png", alt: "Gift" },
+};
+
 export default function EventCardOverlay() {
 	const { state, dispatch } = useGlobalContext();
 
 	if (!state.showEventCard) return null;
+
+	const isPreview = !state.pendingRoundEnd;
+	const cardInfo = CARD_IMAGES[state.eventCardContent];
 
 	return (
 		<div
@@ -20,77 +36,121 @@ export default function EventCardOverlay() {
 			aria-label={
 				state.eventCardContent === "end_of_phase_1"
 					? "End of Phase 1 event card"
-					: "Event card"
+					: state.eventCardContent === "no_road"
+						? "No Road event card"
+						: state.eventCardContent === "black_friday"
+							? "Black Friday event card"
+							: state.eventCardContent === "gift"
+								? "Gift event card"
+								: "Event card"
 			}
 		>
 			<div
-				className="event-card-draw"
+				className={isPreview ? "event-card-preview" : "event-card-draw"}
 				onClick={(e) => e.stopPropagation()}
 			>
-				<div className="event-card-inner">
-					{/* Card back (face down) */}
-					<div className="event-card-face event-card-back">
-						<div
-							style={{
-								position: "absolute",
-								inset: 0,
-								display: "grid",
-								gridTemplateColumns: "1fr 1fr",
-								gridTemplateRows: "1fr 1fr",
-								gap: 8,
-								padding: 12,
-								borderRadius: 8,
-							}}
-						>
-							{SQUARE_GRID.flat().map((idx, i) => (
-								<div
-									key={i}
+				{isPreview ? (
+					<div
+						className="event-card-face"
+						style={{
+							position: "relative",
+							width: "100%",
+							height: "100%",
+							borderRadius: 10,
+							boxShadow: "0 8px 24px rgba(0, 0, 0, 0.3)",
+							border: "2px solid #1e1e1e",
+							overflow: "hidden",
+							background: "#fff",
+						}}
+					>
+						{cardInfo ? (
+							<img
+								src={cardInfo.src}
+								alt={cardInfo.alt}
+								style={{
+									width: "100%",
+									height: "100%",
+									objectFit: "contain",
+								}}
+							/>
+						) : (
+							<div
+								style={{
+									display: "flex",
+									alignItems: "center",
+									justifyContent: "center",
+									minHeight: "100%",
+									color: "rgba(0,0,0,0.35)",
+								}}
+							>
+								—
+							</div>
+						)}
+					</div>
+				) : (
+					<div className="event-card-inner">
+						{/* Card back (face down) */}
+						<div className="event-card-face event-card-back">
+							<div
+								style={{
+									position: "absolute",
+									inset: 0,
+									display: "grid",
+									gridTemplateColumns: "1fr 1fr",
+									gridTemplateRows: "1fr 1fr",
+									gap: 8,
+									padding: 12,
+									borderRadius: 8,
+								}}
+							>
+								{SQUARE_GRID.flat().map((idx, i) => (
+									<div
+										key={i}
+										style={{
+											backgroundColor: SQUARE_COLORS[idx],
+											borderRadius: 4,
+											opacity: 0.9,
+										}}
+									/>
+								))}
+							</div>
+						</div>
+						{/* Card front (face up) */}
+						<div className="event-card-face event-card-front">
+							{cardInfo ? (
+								<img
+									src={cardInfo.src}
+									alt={cardInfo.alt}
 									style={{
-										backgroundColor: SQUARE_COLORS[idx],
-										borderRadius: 4,
-										opacity: 0.9,
+										width: "100%",
+										height: "100%",
+										objectFit: "contain",
 									}}
 								/>
-							))}
-						</div>
-					</div>
-					{/* Card front (face up) */}
-					<div className="event-card-face event-card-front">
-						<div
-							style={{
-								display: "flex",
-								flexDirection: "column",
-								alignItems: "center",
-								justifyContent: "center",
-								padding: 24,
-								textAlign: "center",
-								minHeight: "100%",
-							}}
-						>
-							{state.eventCardContent === "end_of_phase_1" ? (
-								<span
-									style={{
-										fontSize: 22,
-										fontWeight: 700,
-										color: "#1a1a1a",
-										lineHeight: 1.3,
-									}}
-								>
-									End of Phase 1
-								</span>
 							) : (
-								<span
+								<div
 									style={{
-										fontSize: 14,
-										color: "rgba(0,0,0,0.35)",
+										display: "flex",
+										flexDirection: "column",
+										alignItems: "center",
+										justifyContent: "center",
+										padding: 24,
+										minHeight: "100%",
 									}}
 								>
-									—
-								</span>
+									<span
+										style={{
+											fontSize: 14,
+											color: "rgba(0,0,0,0.35)",
+										}}
+									>
+										—
+									</span>
+								</div>
 							)}
 						</div>
 					</div>
-				</div>
+				)}
 			</div>
 			<div
 				style={{

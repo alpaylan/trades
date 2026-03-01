@@ -12,6 +12,9 @@ export default function Controls() {
 	const user = state.game.users[state.game.turn];
 	const actionsUsed = state.actionsUsedThisTurn ?? 0;
 	const actionsLeft = Math.max(0, 2 - actionsUsed);
+	const giftPending =
+		state.activeEventEffects?.gift &&
+		!state.giftReceivedThisRound?.[state.game.turn];
 	const canStartAction =
 		actionsLeft > 0 && !state.endedThisRound[state.game.turn];
 
@@ -33,6 +36,8 @@ export default function Controls() {
 				<button
 					type="button"
 					onClick={() => dispatch({ type: "END_TURN" })}
+					disabled={giftPending}
+					title={giftPending ? "Take your free action tile first" : undefined}
 					style={{
 						backgroundColor: actionsLeft === 0 ? "#ffb300" : "#e0e0e0",
 						borderRadius: "4px",

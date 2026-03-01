@@ -45,11 +45,18 @@ function StoreItem({
 	const current = state.game.turn;
 	const actionsUsed = state.actionsUsedThisTurn ?? 0;
 	const canAct = actionsUsed < 2;
+	const blackFriday = state.activeEventEffects?.blackFriday ?? false;
+	const giftPending =
+		state.activeEventEffects?.gift &&
+		!state.giftReceivedThisRound?.[current];
+	const isFreeActionTile = item.type_ === "action" && giftPending;
+	const displayPrice =
+		isFreeActionTile ? 0 : blackFriday ? Math.max(0, price - 1) : price;
 	const tooltip = showGoldBars
-		? `${text} (cost: ${price} gold)`
-		: `${text} (cost: ${price})`;
+		? `${text} (cost: ${displayPrice} gold${blackFriday ? " — Black Friday!" : ""}${isFreeActionTile ? " — Free gift!" : ""})`
+		: `${text} (cost: ${displayPrice}${blackFriday ? " — Black Friday!" : ""}${isFreeActionTile ? " — Free gift!" : ""})`;
 
-	const disabled = resources.dollar < price || !canAct;
+	const disabled = resources.dollar < displayPrice || !canAct;
 
 	return (
 		<button
@@ -66,7 +73,7 @@ function StoreItem({
 			) : (
 				<img src={icon} alt={`${item.type_} icon`} title={tooltip} />
 			)}
-			<span>{price}</span>
+			<span>{displayPrice}</span>
 		</button>
 	);
 }
@@ -76,9 +83,33 @@ export default function Store({
 }: {
 	resources: ResourceCollection;
 }) {
+	const { state } = useGlobalContext();
+	const current = state.game.turn;
+	const giftPending =
+		state.activeEventEffects?.gift &&
+		!state.giftReceivedThisRound?.[current];
+
 	return (
 		<div id="store" >
 			<div id="action-tiles" className="substore">
+				{giftPending && (
+					<div
+						style={{
+							width: "100%",
+							padding: "6px 8px",
+							marginBottom: 6,
+							backgroundColor: "#fff3e0",
+							border: "1px solid #ffb74d",
+							borderRadius: 6,
+							fontSize: 12,
+							color: "#e65100",
+							fontWeight: 600,
+							textAlign: "center",
+						}}
+					>
+						Don't forget to claim your gift
+					</div>
+				)}
 				<StoreItem
 					resources={resources}
 					price={5}
@@ -108,7 +139,18 @@ export default function Store({
 					text="Unblock a tile"
 				/>
 			</div>
-			<div id="road-tiles" className="substore">
+			<div
+				id="road-tiles"
+				className="substore"
+				style={
+					giftPending
+						? {
+								opacity: 0.5,
+								pointerEvents: "none" as const,
+							}
+						: undefined
+				}
+			>
 				<StoreItem
 					resources={resources}
 					price={2}
@@ -147,7 +189,18 @@ export default function Store({
 					text="Random ($5)"
 				/>
 			</div>
-			<div id="production-tiles" className="substore">
+			<div
+				id="production-tiles"
+				className="substore"
+				style={
+					giftPending
+						? {
+								opacity: 0.5,
+								pointerEvents: "none" as const,
+							}
+						: undefined
+				}
+			>
 				<StoreItem
 					resources={resources}
 					price={5}
