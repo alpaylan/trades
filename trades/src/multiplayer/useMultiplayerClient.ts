@@ -10,9 +10,22 @@ import {
 
 type ConnectionStatus = "idle" | "connecting" | "connected" | "error";
 
-const DEFAULT_WS_URL = "ws://localhost:8787";
+const DEFAULT_REMOTE_WS_URL = "wss://trades-ws-3703.fly.dev";
 
-const toWsUrl = () => import.meta.env.VITE_MULTIPLAYER_WS_URL ?? DEFAULT_WS_URL;
+const toWsUrl = (): string => {
+	const configured = import.meta.env.VITE_MULTIPLAYER_WS_URL?.trim();
+	const url = configured && configured.length > 0 ? configured : DEFAULT_REMOTE_WS_URL;
+	if (!/^wss?:\/\//.test(url)) {
+		throw new Error("VITE_MULTIPLAYER_WS_URL must start with ws:// or wss://");
+	}
+	if (/ws:\/\/(localhost|127\.0\.0\.1)/.test(url)) {
+		throw new Error("Localhost websocket URLs are disabled. Use a remote wss:// endpoint.");
+	}
+	if (window.location.protocol === "https:" && url.startsWith("ws://")) {
+		throw new Error("Insecure ws:// is blocked on HTTPS pages. Use wss://.");
+	}
+	return url;
+};
 
 export function useMultiplayerClient() {
 	const socketRef = useRef<WebSocket | null>(null);
@@ -85,7 +98,15 @@ export function useMultiplayerClient() {
 		) {
 			return;
 		}
-		const socket = new WebSocket(toWsUrl());
+		let wsUrl: string;
+		try {
+			wsUrl = toWsUrl();
+		} catch (error) {
+			setStatus("error");
+			setError(error instanceof Error ? error.message : "Invalid websocket URL configuration.");
+			return;
+		}
+		const socket = new WebSocket(wsUrl);
 		socketRef.current = socket;
 		setStatus("connecting");
 		setError(null);
