@@ -152,7 +152,7 @@ export default function Inventory({
 											purchasedForUser[key] ?? 0;
 										if (tile.type_ === "road") {
 											// Any rotation of this road type bought this turn counts
-											purchasedCount = ROAD_ROTATIONS.reduce(
+											purchasedCount = ROAD_ROTATIONS.reduce<number>(
 												(sum, rotation) => {
 													const roadKey = `road:${tile.road}:${rotation}` as TileKey;
 													return (
@@ -196,29 +196,6 @@ export default function Inventory({
 												type: "SELECT_TILE",
 												payload: tile,
 											});
-										}
-									}}
-									placeTile={() => {
-										const isSelected = state.selected && (
-											tile.type_ === "road" && state.selected.type_ === "road"
-												? state.selected.road === tile.road
-												: toKey(state.selected) === toKey(tile)
-										);
-										
-										if (isSelected) {
-											dispatch({ type: "UNSELECT_TILE" });
-										} else {
-											// When selecting a road, create a new instance with rotation reset
-											// so player must choose rotation before placing
-											if (tile.type_ === "road") {
-												const { road: roadType } = tile;
-												dispatch({ 
-													type: "SELECT_TILE", 
-													payload: { ...tile, rotation: 0 } 
-												});
-											} else {
-												dispatch({ type: "SELECT_TILE", payload: tile });
-											}
 										}
 									}}
 								/>

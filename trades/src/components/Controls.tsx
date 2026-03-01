@@ -15,14 +15,13 @@ export default function Controls() {
 	const giftPending =
 		state.activeEventEffects?.gift &&
 		!state.giftReceivedThisRound?.[state.game.turn];
-	const canStartAction =
-		actionsLeft > 0 && !state.endedThisRound[state.game.turn];
 
 	const pt = state.pendingTurn;
 	const tile = pt ? state.game.tiles[`${pt.y}-${pt.x}`] : null;
-	const road = tile?.content.type_ === "road" ? tile.content.road : null;
+	const content = tile && "content" in tile ? tile.content : null;
+	const road = content?.type_ === "road" ? content.road : null;
 	const isLOrT = road === "l" || road === "t";
-	const currentRotation = tile?.content.type_ === "road" ? tile.content.rotation : 0;
+	const currentRotation = content?.type_ === "road" ? content.rotation : 0;
 	const previewRotation = hoveredRotation ?? currentRotation;
 
 	return (

@@ -713,15 +713,16 @@ export const reducer = (state: State, action: Action): State => {
 			if (tile.type_ === "road") {
 				// Find any road of the same type with any rotation
 				const roadType = tile.road;
-				inventoryKey = ROAD_ROTATIONS
+				const foundKey = ROAD_ROTATIONS
 					.map((rotation) => `road:${roadType}:${rotation}` as TileKey)
-					.find((key) => user.inventory[key] > 0) as TileKey | undefined;
+					.find((key) => user.inventory[key] > 0);
 				
-				if (!inventoryKey || user.inventory[inventoryKey] <= 0) {
+				if (!foundKey || user.inventory[foundKey] <= 0) {
 					console.log(`Not enough ${roadType} road tiles in inventory`);
 					return state;
 				}
-				inventoryCount = user.inventory[inventoryKey] - 1;
+				inventoryKey = foundKey;
+				inventoryCount = user.inventory[foundKey] - 1;
 			} else {
 				// For non-roads, use the exact tile key
 				inventoryKey = toKey(tile);
@@ -868,18 +869,24 @@ export const reducer = (state: State, action: Action): State => {
 				history: historyState,
 			};
 		})
-		.with({ type: "SHOW_EVENT_CARD_PREVIEW" }, () => {
-			if (!state.lastDrawnEventCard || state.lastDrawnEventCard === "blank") {
-				return state;
+		.with({ type: "SHOW_EVENT_CARD_PREVIEW" }, (): State => {
+			const card = state.lastDrawnEventCard;
+			if (
+				card === "end_of_phase_1" ||
+				card === "no_road" ||
+				card === "black_friday" ||
+				card === "gift"
+			) {
+				return {
+					...state,
+					showEventCard: true,
+					eventCardContent: card,
+					pendingRoundEnd: false,
+				};
 			}
-			return {
-				...state,
-				showEventCard: true,
-				eventCardContent: state.lastDrawnEventCard,
-				pendingRoundEnd: false,
-			};
+			return state;
 		})
-		.exhaustive();
+		.exhaustive() as State;
 };
 
 type GlobalContextType = {

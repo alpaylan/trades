@@ -172,18 +172,19 @@ export default function Tile({
 					match(state.selected)
 						.with({ type_: "action" }, (tile_) => {
 							// apply the action to the tile
-							if (tile.content.type_ === "road") {
+							const content = tile.owned ? tile.content : null;
+							if (content?.type_ === "road") {
 								match(tile_.action)
 									.with("turn", () => {
-										if (tile.content.road === "plus") return;
-										if (tile.content.road === "i") {
+										if (content.road === "plus") return;
+										if (content.road === "i") {
 											dispatch({
 												type: "TURN_TILE",
 												payload: { x: tile.x, y: tile.y, direction: "cw" },
 											});
 											return;
 										}
-										if (tile.content.road === "l" || tile.content.road === "t") {
+										if (content.road === "l" || content.road === "t") {
 											dispatch({
 												type: "SET_PENDING_TURN",
 												payload: { x: tile.x, y: tile.y },
