@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { type ResourceCollection, type Tilable, road } from "../logic/Game";
 import { useGlobalContext } from "../logic/State";
+import DiceRoll from "./DiceRoll";
 
 const GOLD_BAR_SRC = "/assets/gold-bar.svg";
 
@@ -46,15 +48,17 @@ function StoreItem({
 	const actionsUsed = state.actionsUsedThisTurn ?? 0;
 	const canAct = actionsUsed < 2;
 	const blackFriday = state.activeEventEffects?.blackFriday ?? false;
+	const rapidInflation = state.activeEventEffects?.rapidInflation ?? false;
 	const giftPending =
 		state.activeEventEffects?.gift &&
 		!state.giftReceivedThisRound?.[current];
 	const isFreeActionTile = item.type_ === "action" && giftPending;
 	const displayPrice =
-		isFreeActionTile ? 0 : blackFriday ? Math.max(0, price - 1) : price;
+		isFreeActionTile ? 0 : blackFriday ? Math.max(0, price - 1) : rapidInflation ? price + 2 : price;
+	const priceTag = blackFriday ? " — Black Friday!" : rapidInflation ? " — Rapid Inflation!" : "";
 	const tooltip = showGoldBars
-		? `${text} (cost: ${displayPrice} gold${blackFriday ? " — Black Friday!" : ""}${isFreeActionTile ? " — Free gift!" : ""})`
-		: `${text} (cost: ${displayPrice}${blackFriday ? " — Black Friday!" : ""}${isFreeActionTile ? " — Free gift!" : ""})`;
+		? `${text} (cost: ${displayPrice} gold${priceTag}${isFreeActionTile ? " — Free gift!" : ""})`
+		: `${text} (cost: ${displayPrice}${priceTag}${isFreeActionTile ? " — Free gift!" : ""})`;
 
 	const disabled = resources.dollar < displayPrice || !canAct;
 
@@ -78,33 +82,128 @@ function StoreItem({
 	);
 }
 
+function RandomTileConfirmDialog({
+	onConfirm,
+	onCancel,
+}: {
+	onConfirm: () => void;
+	onCancel: () => void;
+}) {
+	return (
+		<div
+			style={{
+				position: "fixed",
+				inset: 0,
+				zIndex: 9999,
+				display: "flex",
+				alignItems: "center",
+				justifyContent: "center",
+				backgroundColor: "rgba(0,0,0,0.45)",
+			}}
+			onClick={onCancel}
+		>
+			<div
+				style={{
+					background: "#fff",
+					borderRadius: 10,
+					padding: "24px 28px",
+					boxShadow: "0 4px 24px rgba(0,0,0,0.25)",
+					maxWidth: 340,
+					textAlign: "center",
+				}}
+				onClick={(e) => e.stopPropagation()}
+			>
+				<p style={{ margin: "0 0 6px", fontWeight: 700, fontSize: 15 }}>
+					Random Tile
+				</p>
+				<p style={{ margin: "0 0 18px", fontSize: 13, color: "#555" }}>
+					This action cannot be undone. Do you want to continue?
+				</p>
+				<div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+					<button
+						type="button"
+						onClick={onCancel}
+						style={{
+							padding: "6px 18px",
+							borderRadius: 6,
+							border: "1px solid #ccc",
+							background: "#f5f5f5",
+							cursor: "pointer",
+							fontSize: 13,
+						}}
+					>
+						Cancel
+					</button>
+					<button
+						type="button"
+						onClick={onConfirm}
+						style={{
+							padding: "6px 18px",
+							borderRadius: 6,
+							border: "none",
+							background: "#e65100",
+							color: "#fff",
+							cursor: "pointer",
+							fontWeight: 600,
+							fontSize: 13,
+						}}
+					>
+						Confirm
+					</button>
+				</div>
+			</div>
+		</div>
+	);
+}
+
 export default function Store({
 	resources,
 }: {
 	resources: ResourceCollection;
 }) {
-	const { state } = useGlobalContext();
+	const { state, dispatch } = useGlobalContext();
 	const current = state.game.turn;
 	const giftPending =
 		state.activeEventEffects?.gift &&
 		!state.giftReceivedThisRound?.[current];
+	const [showRandomConfirm, setShowRandomConfirm] = useState(false);
+
+	const randomPrice = 5;
+	const blackFriday = state.activeEventEffects?.blackFriday ?? false;
+	const rapidInflation = state.activeEventEffects?.rapidInflation ?? false;
+	const randomDisplayPrice = blackFriday ? Math.max(0, randomPrice - 1) : rapidInflation ? randomPrice + 2 : randomPrice;
+	const actionsUsed = state.actionsUsedThisTurn ?? 0;
+	const randomDisabled = resources.dollar < randomDisplayPrice || actionsUsed >= 2;
 
 	return (
 		<div id="store" >
+			{showRandomConfirm && (
+				<RandomTileConfirmDialog
+					onConfirm={() => {
+						setShowRandomConfirm(false);
+						dispatch({
+							type: "START_DICE_ROLL",
+							payload: { price: randomPrice },
+						});
+					}}
+					onCancel={() => setShowRandomConfirm(false)}
+				/>
+			)}
+			{state.diceRoll?.active && <DiceRoll />}
 			<div id="action-tiles" className="substore">
 				{giftPending && (
 					<div
 						style={{
 							width: "100%",
-							padding: "6px 8px",
-							marginBottom: 6,
+							padding: "4px 8px",
 							backgroundColor: "#fff3e0",
 							border: "1px solid #ffb74d",
-							borderRadius: 6,
-							fontSize: 12,
+							borderRadius: 4,
+							fontSize: 11,
 							color: "#e65100",
 							fontWeight: 600,
 							textAlign: "center",
+							whiteSpace: "nowrap",
 						}}
 					>
 						Don't forget to claim your gift
@@ -179,15 +278,17 @@ export default function Store({
 					icon="/assets/road-plus.svg"
 					text="Crossroad ($8)"
 				/>
-				<StoreItem
-					resources={resources}
-					price={5}
-					item={road("plus", 0)}
-					icon="/assets/question.svg"
-					// item={(n: number) => road(ROAD_TYPES[n], 0)}
-					// icon={(n: number) => `/assets/road-${ROAD_TYPES[n]}.svg`}
-					text="Random ($5)"
-				/>
+				<button
+					type="button"
+					disabled={randomDisabled}
+					title={`Random road tile (cost: ${randomDisplayPrice}${blackFriday ? " — Black Friday!" : ""}${rapidInflation ? " — Rapid Inflation!" : ""})`}
+					onClick={() => {
+						if (!randomDisabled) setShowRandomConfirm(true);
+					}}
+				>
+					<img src="/assets/question.svg" alt="random tile icon" title={`Random road tile (cost: ${randomDisplayPrice})`} />
+					<span>{randomDisplayPrice}</span>
+				</button>
 			</div>
 			<div
 				id="production-tiles"

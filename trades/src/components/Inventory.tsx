@@ -106,12 +106,93 @@ function InventoryItem({
 	);
 }
 
+function getPurchasedCount(
+	tile: Tilable,
+	tileKey: TileKey,
+	purchasedForUser: Partial<Record<TileKey, number>>,
+): number {
+	if (tile.type_ === "road") {
+		return ROAD_ROTATIONS.reduce<number>((sum, rotation) => {
+			const roadKey = `road:${tile.road}:${rotation}` as TileKey;
+			return sum + (purchasedForUser[roadKey] ?? 0);
+		}, 0);
+	}
+	return purchasedForUser[tileKey] ?? 0;
+}
+
+function InventorySection({
+	items,
+	disabled,
+}: {
+	items: { tileKey: TileKey; tile: Tilable; count: number }[];
+	disabled: boolean;
+}) {
+	const { state, dispatch } = useGlobalContext();
+
+	if (items.length === 0) return null;
+
+	return (
+		<div
+			style={{
+				display: "flex",
+				flexDirection: "row",
+				flexWrap: "wrap",
+				gap: 4,
+				alignContent: "flex-start",
+				...(disabled
+					? { opacity: 0.35, pointerEvents: "none" as const }
+					: {}),
+			}}
+		>
+			{items.map(({ tile, count }, index) => (
+				<div key={index}>
+					<InventoryItem
+						selected={
+							!!(
+								state.selected &&
+								(tile.type_ === "road" &&
+								state.selected.type_ === "road"
+									? state.selected.road === tile.road
+									: toKey(state.selected) === toKey(tile))
+							)
+						}
+						tile={tile}
+						count={count}
+						placeTile={() => {
+							const isSelected =
+								state.selected &&
+								(tile.type_ === "road" &&
+								state.selected.type_ === "road"
+									? state.selected.road === tile.road
+									: toKey(state.selected) === toKey(tile));
+
+							if (isSelected) {
+								dispatch({ type: "UNSELECT_TILE" });
+							} else if (tile.type_ === "road") {
+								dispatch({
+									type: "SELECT_TILE",
+									payload: { ...tile, rotation: 0 },
+								});
+							} else {
+								dispatch({
+									type: "SELECT_TILE",
+									payload: tile,
+								});
+							}
+						}}
+					/>
+				</div>
+			))}
+		</div>
+	);
+}
+
 export default function Inventory({
 	inventory,
 }: {
 	inventory: InventoryType;
 }) {
-	const { state, dispatch } = useGlobalContext();
+	const { state } = useGlobalContext();
 	const current = state.game.turn;
 	const actionsUsed = state.actionsUsedThisTurn ?? 0;
 	const ended = state.endedThisRound[current];
@@ -120,6 +201,49 @@ export default function Inventory({
 	const giftPending =
 		state.activeEventEffects?.gift &&
 		!state.giftReceivedThisRound?.[current];
+	const noRoadActive = state.activeEventEffects?.noRoad ?? false;
+	const safePassageActive = state.activeEventEffects?.safePassage ?? false;
+	const brokenLogisticsActive = state.activeEventEffects?.brokenLogistics ?? false;
+
+	const allItems = Object.keys(inventory)
+		.map((tileKey) => [tileKey as TileKey, toTilable(tileKey as TileKey)] as const)
+		.filter(([tileKey]) => inventory[tileKey] > 0);
+
+	const permanentItems: { tileKey: TileKey; tile: Tilable; count: number }[] = [];
+	const purchasedItems: { tileKey: TileKey; tile: Tilable; count: number }[] = [];
+
+	for (const [tileKey, tile] of allItems) {
+		const totalCount = inventory[tileKey];
+		const purchased = getPurchasedCount(tile, tileKey, purchasedForUser);
+		const permanentCount = totalCount - purchased;
+
+		if (permanentCount > 0) {
+			permanentItems.push({ tileKey, tile, count: permanentCount });
+		}
+		if (purchased > 0) {
+			purchasedItems.push({ tileKey, tile, count: purchased });
+		}
+	}
+
+	const isItemDisabled = (tile: Tilable) => {
+		if (noRoadActive && tile.type_ === "road") return true;
+		if (safePassageActive && tile.type_ === "action" && tile.action === "block") return true;
+		if (brokenLogisticsActive && tile.type_ === "action" && tile.action === "unblock") return true;
+		return false;
+	};
+
+	const permanentFiltered = permanentItems.map((item) => ({
+		...item,
+		disabled: isItemDisabled(item.tile),
+	}));
+
+	const purchasedFiltered = purchasedItems.map((item) => ({
+		...item,
+		disabled: isItemDisabled(item.tile),
+	}));
+
+	const hasPurchased = purchasedItems.length > 0;
+
 	return (
 		<div
 			id="inventory"
@@ -129,79 +253,40 @@ export default function Inventory({
 					: undefined
 			}
 		>
-			{Object.keys(inventory)
-				.map((tileKey) => [tileKey, toTilable(tileKey as TileKey)] as const)
-				.map(
-					([tileKey, tile], index) =>
-						inventory[tileKey as TileKey] > 0 && (
-							// biome-ignore lint/suspicious/noArrayIndexKey: <explanation>
-							<div key={index}>
-								<InventoryItem
-									selected={
-										!!(state.selected && (
-											tile.type_ === "road" && state.selected.type_ === "road"
-												? state.selected.road === tile.road
-												: toKey(state.selected) === toKey(tile)
-										))
-									}
-									tile={tile}
-									count={inventory[tileKey as TileKey]}
-									placeTile={() => {
-										const key = tileKey as TileKey;
-										let purchasedCount =
-											purchasedForUser[key] ?? 0;
-										if (tile.type_ === "road") {
-											// Any rotation of this road type bought this turn counts
-											purchasedCount = ROAD_ROTATIONS.reduce<number>(
-												(sum, rotation) => {
-													const roadKey = `road:${tile.road}:${rotation}` as TileKey;
-													return (
-														sum +
-														(purchasedForUser[roadKey] ?? 0)
-													);
-												},
-												0,
-											);
-										}
-										if (
-											!canStartAction &&
-											purchasedCount === 0
-										) {
-											return;
-										}
-
-										const isSelected =
-											state.selected &&
-											(tile.type_ === "road" &&
-											state.selected.type_ === "road"
-												? state.selected.road ===
-													tile.road
-												: toKey(state.selected) ===
-													toKey(tile));
-										
-										if (isSelected) {
-											dispatch({
-												type: "UNSELECT_TILE",
-											});
-										} else if (tile.type_ === "road") {
-											dispatch({
-												type: "SELECT_TILE",
-												payload: {
-													...tile,
-													rotation: 0,
-												},
-											});
-										} else {
-											dispatch({
-												type: "SELECT_TILE",
-												payload: tile,
-											});
-										}
-									}}
-								/>
-							</div>
-						),
+			<InventorySection
+				items={permanentFiltered.filter((i) => !i.disabled)}
+				disabled={!canStartAction}
+			/>
+			{permanentFiltered.some((i) => i.disabled) && (
+					<InventorySection
+						items={permanentFiltered.filter((i) => i.disabled)}
+						disabled={true}
+					/>
 				)}
+
+			{hasPurchased && (
+				<>
+					<div
+						style={{
+							width: 1,
+							alignSelf: "stretch",
+							backgroundColor: "rgba(0,0,0,0.2)",
+							margin: "0 4px",
+							flexShrink: 0,
+						}}
+					/>
+					<InventorySection
+						items={purchasedFiltered.filter((i) => !i.disabled)}
+						disabled={false}
+					/>
+					{purchasedFiltered.some((i) => i.disabled) && (
+							<InventorySection
+								items={purchasedFiltered.filter((i) => i.disabled)}
+								disabled={true}
+							/>
+						)}
+				</>
+			)}
 		</div>
 	);
 }

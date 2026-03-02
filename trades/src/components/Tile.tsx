@@ -78,14 +78,22 @@ export default function Tile({
 				? "Road placement disabled (No Road event)"
 				: `Empty tile (owner: ${tile.owner})`,
 		)
-		.with({ type_: "hall" }, (content) => `City hall (level ${content.level})`)
-		.with(
-			{ type_: "road" },
-			(content) =>
-				`Road (${content.road}) - rotation ${content.rotation}°` +
-				(content.blocked ? " - blocked" : "") +
-				(content.toll ? " - toll enabled" : ""),
+		.with({ type_: "road" }, (content) =>
+			state.selected?.type_ === "action" &&
+			state.selected.action === "block" &&
+			!content.blocked &&
+			state.activeEventEffects?.safePassage
+				? "Block placement disabled (Safe Passage event)"
+				: state.selected?.type_ === "action" &&
+						state.selected.action === "unblock" &&
+						content.blocked &&
+						state.activeEventEffects?.brokenLogistics
+					? "Unblock disabled (Broken Logistics event)"
+					: `Road (${content.road}) - rotation ${content.rotation}°` +
+						(content.blocked ? " - blocked" : "") +
+						(content.toll ? " - toll enabled" : ""),
 		)
+		.with({ type_: "hall" }, (content) => `City hall (level ${content.level})`)
 		.with(
 			{ type_: "production" },
 			(content) =>
@@ -136,6 +144,22 @@ export default function Tile({
 			state.selected.type_ === "road" &&
 			accessibleAndFree &&
 			state.activeEventEffects?.noRoad
+		) {
+			canClick = false;
+		}
+		// Safe Passage event: cannot place block tiles this round
+		if (
+			state.selected.type_ === "action" &&
+			state.selected.action === "block" &&
+			state.activeEventEffects?.safePassage
+		) {
+			canClick = false;
+		}
+		// Broken Logistics event: cannot use unblock tiles this round
+		if (
+			state.selected.type_ === "action" &&
+			state.selected.action === "unblock" &&
+			state.activeEventEffects?.brokenLogistics
 		) {
 			canClick = false;
 		}

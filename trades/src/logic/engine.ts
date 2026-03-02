@@ -7,9 +7,7 @@ import {
 	game,
 	next,
 	ROAD_ROTATIONS,
-	ROAD_TYPES,
 	RESOURCE_TYPES,
-	road,
 	type Game,
 	type RoadRotation,
 	type TileKey,
@@ -85,11 +83,13 @@ export type State = {
 	eventCardTriggerPosition: number;
 	noRoadTestPosition: 1 | 2 | 3;
 	showEventCard: boolean;
-	eventCardContent: "blank" | "end_of_phase_1" | "no_road" | "black_friday" | "gift";
+	eventCardContent: "blank" | "end_of_phase_1" | "no_road" | "black_friday" | "gift" | "lucky_streak" | "labor_revolt" | "rapid_inflation" | "structural_collapse" | "safe_passage" | "broken_logistics";
 	pendingRoundEnd: boolean;
-	activeEventEffects: { noRoad: boolean; blackFriday: boolean; gift: boolean };
+	activeEventEffects: { noRoad: boolean; blackFriday: boolean; gift: boolean; luckyStreak: boolean; laborRevolt: boolean; rapidInflation: boolean; safePassage: boolean; brokenLogistics: boolean };
 	giftReceivedThisRound: Record<TileOwner, boolean>;
-	lastDrawnEventCard: "blank" | "end_of_phase_1" | "no_road" | "black_friday" | "gift" | null;
+	lastDrawnEventCard: "blank" | "end_of_phase_1" | "no_road" | "black_friday" | "gift" | "lucky_streak" | "labor_revolt" | "rapid_inflation" | "structural_collapse" | "safe_passage" | "broken_logistics" | null;
+	randomTilePurchasedThisTurn: boolean;
+	diceRoll: { active: boolean } | null;
 	history: State[];
 };
 
@@ -110,9 +110,11 @@ export const initialState = (): State => ({
 	showEventCard: false,
 	eventCardContent: "blank",
 	pendingRoundEnd: false,
-	activeEventEffects: { noRoad: false, blackFriday: false, gift: false },
+	activeEventEffects: { noRoad: false, blackFriday: false, gift: false, luckyStreak: false, laborRevolt: false, rapidInflation: false, safePassage: false, brokenLogistics: false },
 	giftReceivedThisRound: initialGiftReceivedThisRound(),
 	lastDrawnEventCard: null,
+	randomTilePurchasedThisTurn: false,
+	diceRoll: null,
 	history: [],
 });
 
@@ -131,7 +133,9 @@ export type Action =
 	| { type: "TOLL_TILE"; payload: { x: number; y: number } }
 	| { type: "PLACE_TILE"; payload: { x: number; y: number; tile: Tilable } }
 	| { type: "DISMISS_EVENT_CARD" }
-	| { type: "SHOW_EVENT_CARD_PREVIEW" };
+	| { type: "SHOW_EVENT_CARD_PREVIEW" }
+	| { type: "START_DICE_ROLL"; payload: { price: number } }
+	| { type: "FINISH_DICE_ROLL"; payload: { tile: Tilable | null } };
 
 export const UI_ONLY_ACTION_TYPES: Action["type"][] = [
 	"SELECT_TILE",
@@ -267,20 +271,34 @@ export const reducer = (state: State, action: Action): State => {
 				const newEventCards = Math.max(0, state.eventCardsRemaining - 1);
 				const drawCard = state.eventCardsRemaining > 0;
 				const cardIndex = 26 - state.eventCardsRemaining;
-				const eventCardContent: "blank" | "end_of_phase_1" | "no_road" | "black_friday" | "gift" =
+				const eventCardContent: State["eventCardContent"] =
 					!drawCard
 						? "blank"
-						: cardIndex === 2
-							? "gift"
-							: cardIndex === 3
-								? "black_friday"
-								: cardIndex === 4
-									? "no_road"
-									: cardIndex === 5
-										? "end_of_phase_1"
-										: newEventCards === state.eventCardTriggerPosition
+						: cardIndex === 1
+							? "structural_collapse"
+							: cardIndex === 2
+								? "broken_logistics"
+								: cardIndex === 3
+									? "labor_revolt"
+									: cardIndex === 4
+										? "no_road"
+										: cardIndex === 5
 											? "end_of_phase_1"
-											: "blank";
+											: cardIndex === 6
+												? "gift"
+												: cardIndex === 7
+													? "black_friday"
+													: cardIndex === 8
+														? "lucky_streak"
+														: cardIndex === 9
+															? "safe_passage"
+															: cardIndex === 10
+															? "rapid_inflation"
+															: cardIndex === 15
+															? "end_of_phase_1"
+															: newEventCards === state.eventCardTriggerPosition
+																? "end_of_phase_1"
+																: "blank";
 
 				if (!drawCard) {
 					const nextRound = (baseGame.round ?? 1) + 1;
@@ -313,10 +331,11 @@ export const reducer = (state: State, action: Action): State => {
 						pendingTurn: null,
 						lastRandomRoll: null,
 						actionsUsedThisTurn: 0,
+						randomTilePurchasedThisTurn: false,
 						endedThisRound: initialEndedThisRound(),
 						purchasedThisTurn: initialPurchasedThisTurn(),
 						eventCardsRemaining: newEventCards,
-						activeEventEffects: { noRoad: false, blackFriday: false, gift: false },
+						activeEventEffects: { noRoad: false, blackFriday: false, gift: false, luckyStreak: false, laborRevolt: false, rapidInflation: false, safePassage: false, brokenLogistics: false },
 						giftReceivedThisRound: initialGiftReceivedThisRound(),
 						history: historyState,
 					};
@@ -330,6 +349,7 @@ export const reducer = (state: State, action: Action): State => {
 					pendingTurn: null,
 					lastRandomRoll: null,
 					actionsUsedThisTurn: 0,
+					randomTilePurchasedThisTurn: false,
 					endedThisRound,
 					purchasedThisTurn: purchasedClearedForCurrent,
 					eventCardsRemaining: newEventCards,
@@ -353,6 +373,7 @@ export const reducer = (state: State, action: Action): State => {
 				pendingTurn: null,
 				lastRandomRoll: null,
 				actionsUsedThisTurn: 0,
+				randomTilePurchasedThisTurn: false,
 				endedThisRound,
 				purchasedThisTurn: purchasedClearedForCurrent,
 				history: historyState,
@@ -363,11 +384,9 @@ export const reducer = (state: State, action: Action): State => {
 			const user = state.game.users[state.game.turn];
 			const giftPending = state.activeEventEffects?.gift && !state.giftReceivedThisRound?.[user.color];
 			const isFreeActionTile = item.type_ === "action" && giftPending;
-			const effectivePrice = isFreeActionTile ? 0 : state.activeEventEffects?.blackFriday ? Math.max(0, price - 1) : price;
-			const isRandomTile = item.type_ === "road" && item.road === "plus" && price === 5;
-			const purchasedItem: Tilable = isRandomTile
-				? state.lastRandomRoll ?? road(ROAD_TYPES[Math.floor(Math.random() * ROAD_TYPES.length)], ROAD_ROTATIONS[Math.floor(Math.random() * ROAD_ROTATIONS.length)])
-				: item;
+			const inflation = state.activeEventEffects?.rapidInflation ? 2 : 0;
+			const effectivePrice = isFreeActionTile ? 0 : state.activeEventEffects?.blackFriday ? Math.max(0, price - 1) : price + inflation;
+			const purchasedItem: Tilable = item;
 			if (state.actionsUsedThisTurn >= 2) {
 				return state;
 			}
@@ -389,7 +408,6 @@ export const reducer = (state: State, action: Action): State => {
 				[user.color]: updatedUserPurchased,
 			};
 			const giftReceivedThisRound = isFreeActionTile ? { ...state.giftReceivedThisRound, [user.color]: true } : state.giftReceivedThisRound;
-			const historyForRandom = isRandomTile ? [...state.history.slice(-19), { ...state, history: [], lastRandomRoll: purchasedItem }] : historyState;
 
 			return {
 				...state,
@@ -410,11 +428,10 @@ export const reducer = (state: State, action: Action): State => {
 						},
 					},
 				},
-				lastRandomRoll: isRandomTile ? null : state.lastRandomRoll,
 				actionsUsedThisTurn: state.actionsUsedThisTurn + 1,
 				purchasedThisTurn,
 				giftReceivedThisRound,
-				history: historyForRandom,
+				history: historyState,
 			};
 		})
 		.with({ type: "TURN_TILE" }, (innerAction) => {
@@ -487,6 +504,12 @@ export const reducer = (state: State, action: Action): State => {
 			const tile = state.game.tiles[`${y}-${x}`];
 			const actionsUsed = state.actionsUsedThisTurn;
 			if (!tile.owned || tile.content.type_ !== "road") {
+				return state;
+			}
+			if (innerAction.type === "BLOCK_TILE" && state.activeEventEffects?.safePassage) {
+				return state;
+			}
+			if (innerAction.type === "UNBLOCK_TILE" && state.activeEventEffects?.brokenLogistics) {
 				return state;
 			}
 			if (tile.content.blocked && innerAction.type === "BLOCK_TILE") {
@@ -732,11 +755,15 @@ export const reducer = (state: State, action: Action): State => {
 			const nextRound = (baseGame.round ?? 1) + 1;
 			const roundStarter = TILE_OWNERS[(nextRound - 1) % TILE_OWNERS.length];
 			const newUsers: typeof baseGame.users = { ...baseGame.users };
+			const laborRevoltActive = state.eventCardContent === "labor_revolt";
+			const structuralCollapseActive = state.eventCardContent === "structural_collapse";
 			for (const owner of TILE_OWNERS) {
 				const user = baseGame.users[owner];
 				const production = calculateUserProduction(baseGame, owner);
 				const addedResources = RESOURCE_TYPES.reduce((acc, resource) => {
-					acc[resource] = user.resources[resource] + production[resource];
+					const base = production[resource];
+					const effective = structuralCollapseActive ? 0 : laborRevoltActive ? Math.floor(base * 0.6) : base;
+					acc[resource] = user.resources[resource] + effective;
 					return acc;
 				}, zero());
 				newUsers[owner] = {
@@ -752,6 +779,11 @@ export const reducer = (state: State, action: Action): State => {
 				noRoad: state.eventCardContent === "no_road",
 				blackFriday: state.eventCardContent === "black_friday",
 				gift: state.eventCardContent === "gift",
+				luckyStreak: state.eventCardContent === "lucky_streak",
+				laborRevolt: state.eventCardContent === "labor_revolt",
+				rapidInflation: state.eventCardContent === "rapid_inflation",
+				safePassage: state.eventCardContent === "safe_passage",
+				brokenLogistics: state.eventCardContent === "broken_logistics",
 			};
 
 			return {
@@ -768,6 +800,7 @@ export const reducer = (state: State, action: Action): State => {
 				pendingTurn: null,
 				lastRandomRoll: null,
 				actionsUsedThisTurn: 0,
+				randomTilePurchasedThisTurn: false,
 				endedThisRound: initialEndedThisRound(),
 				purchasedThisTurn: initialPurchasedThisTurn(),
 				showEventCard: false,
@@ -788,6 +821,69 @@ export const reducer = (state: State, action: Action): State => {
 				showEventCard: true,
 				eventCardContent: state.lastDrawnEventCard as Exclude<State["eventCardContent"], "blank">,
 				pendingRoundEnd: false,
+			};
+		})
+		.with({ type: "START_DICE_ROLL" }, (innerAction) => {
+			const { price } = innerAction.payload;
+			const user = state.game.users[state.game.turn];
+			const inflation = state.activeEventEffects?.rapidInflation ? 2 : 0;
+			const effectivePrice = state.activeEventEffects?.blackFriday ? Math.max(0, price - 1) : price + inflation;
+			if (state.actionsUsedThisTurn >= 2) return state;
+			if (user.resources.dollar < effectivePrice) return state;
+			return {
+				...state,
+				game: {
+					...state.game,
+					users: {
+						...state.game.users,
+						[user.color]: {
+							...user,
+							resources: {
+								...user.resources,
+								dollar: user.resources.dollar - effectivePrice,
+							},
+						},
+					},
+				},
+				actionsUsedThisTurn: state.actionsUsedThisTurn + 1,
+				randomTilePurchasedThisTurn: true,
+				diceRoll: { active: true },
+				history: [],
+			};
+		})
+		.with({ type: "FINISH_DICE_ROLL" }, (innerAction) => {
+			const { tile } = innerAction.payload;
+			if (!state.diceRoll?.active) return state;
+			if (!tile) {
+				return { ...state, diceRoll: null };
+			}
+			const user = state.game.users[state.game.turn];
+			const key = toKey(tile);
+			const userPurchased = state.purchasedThisTurn[user.color] ?? {};
+			const updatedUserPurchased: Partial<Record<TileKey, number>> = {
+				...userPurchased,
+				[key]: (userPurchased[key] ?? 0) + 1,
+			};
+			return {
+				...state,
+				game: {
+					...state.game,
+					users: {
+						...state.game.users,
+						[user.color]: {
+							...user,
+							inventory: {
+								...user.inventory,
+								[key]: (user.inventory[key] ?? 0) + 1,
+							},
+						},
+					},
+				},
+				purchasedThisTurn: {
+					...state.purchasedThisTurn,
+					[user.color]: updatedUserPurchased,
+				},
+				diceRoll: null,
 			};
 		})
 		.exhaustive() as State;

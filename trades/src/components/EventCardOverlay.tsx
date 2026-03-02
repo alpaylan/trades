@@ -17,6 +17,12 @@ const CARD_IMAGES: Record<string, { src: string; alt: string }> = {
 		alt: "Black Friday",
 	},
 	gift: { src: "/assets/event-card-gift.png", alt: "Gift" },
+	lucky_streak: { src: "/assets/event-card-lucky-streak.png", alt: "Lucky Streak" },
+	labor_revolt: { src: "/assets/event-card-labor-revolt.png", alt: "Labor Revolt" },
+	rapid_inflation: { src: "/assets/event-card-rapid-inflation.png", alt: "Rapid Inflation" },
+	structural_collapse: { src: "/assets/event-card-structural-collapse.png", alt: "Structural Collapse" },
+	safe_passage: { src: "/assets/event-card-safe-passage.png", alt: "Safe Passage" },
+	broken_logistics: { src: "/assets/event-card-broken-logistics.png", alt: "Broken Logistics" },
 };
 
 export default function EventCardOverlay() {
@@ -42,7 +48,19 @@ export default function EventCardOverlay() {
 							? "Black Friday event card"
 							: state.eventCardContent === "gift"
 								? "Gift event card"
-								: "Event card"
+								: state.eventCardContent === "lucky_streak"
+									? "Lucky Streak event card"
+									: state.eventCardContent === "labor_revolt"
+										? "Labor Revolt event card"
+										: state.eventCardContent === "rapid_inflation"
+											? "Rapid Inflation event card"
+											: state.eventCardContent === "structural_collapse"
+												? "Structural Collapse event card"
+												: state.eventCardContent === "safe_passage"
+													? "Safe Passage event card"
+													: state.eventCardContent === "broken_logistics"
+														? "Broken Logistics event card"
+														: "Event card"
 			}
 		>
 			<div

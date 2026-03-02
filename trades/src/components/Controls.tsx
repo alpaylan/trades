@@ -31,7 +31,7 @@ export default function Controls() {
 				round={state.game.round ?? 1}
 				actionsLeft={actionsLeft}
 			/>
-			<div style={{ display: "flex", gap: "10px" }}>
+			<div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
 				<button
 					type="button"
 					onClick={() => dispatch({ type: "END_TURN" })}

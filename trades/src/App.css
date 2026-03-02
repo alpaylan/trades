@@ -44,6 +44,7 @@ button {
 #app-layout {
   display: flex;
   align-items: flex-start;
+  justify-content: center;
   gap: 1rem;
 }
 
@@ -139,7 +140,7 @@ button {
   align-items: stretch;
   gap: 0.5rem;
   padding: 0.5rem;
-  width: clamp(220px, 22vw, 280px);
+  width: clamp(300px, 26vw, 370px);
   max-height: calc(100vh - 2rem);
   overflow: auto;
   background: rgba(255, 255, 255, 0.8);
@@ -200,10 +201,14 @@ button {
 .substore {
   display: flex;
   flex-direction: row;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   padding: 0.25rem;
   border: 1px black solid;
   gap: 0.35rem;
+}
+
+#action-tiles {
+  flex-wrap: wrap;
 }
 
 .substore h2 {
@@ -264,6 +269,7 @@ button {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
+  white-space: nowrap;
 }
 
 .turn-indicator {
@@ -415,15 +421,15 @@ button {
 }
 
 .event-card-draw {
-  width: 150px;
-  height: 210px;
-  perspective: 400px;
+  width: 300px;
+  height: 420px;
+  perspective: 500px;
   animation: eventCardDraw 0.8s ease-out forwards;
 }
 
 .event-card-preview {
-  width: 150px;
-  height: 210px;
+  width: 300px;
+  height: 420px;
 }
 
 @keyframes eventCardDraw {
@@ -474,4 +480,10 @@ button {
   background: #ffffff;
   border: 2px solid #1e1e1e;
   transform: rotateY(180deg);
+}
+
+@keyframes dice-shake {
+  0%   { transform: translate(-2px, -1px) rotate(-2deg); }
+  50%  { transform: translate(1px, 2px) rotate(1deg); }
+  100% { transform: translate(2px, -2px) rotate(2deg); }
 }
