@@ -17,6 +17,7 @@ import {
 	type State,
 	UI_ONLY_ACTION_TYPES,
 } from "./engine";
+import { listViableMoves } from "./viableMoves";
 
 type MultiplayerBridge = {
 	sendAuthoritativeAction: (action: Action) => void;
@@ -72,6 +73,22 @@ export const GlobalProvider = ({
 		}),
 		[state, dispatch],
 	);
+
+	useEffect(() => {
+		if (typeof window === "undefined") {
+			return;
+		}
+		const hooks = {
+			getState: () => state,
+			dispatch,
+			listViableMoves: () => listViableMoves(state),
+		};
+		(
+			window as unknown as {
+				__TRADES_TEST_HOOKS__?: typeof hooks;
+			}
+		).__TRADES_TEST_HOOKS__ = hooks;
+	}, [state, dispatch]);
 
 	return <GlobalContext.Provider value={value}>{children}</GlobalContext.Provider>;
 };

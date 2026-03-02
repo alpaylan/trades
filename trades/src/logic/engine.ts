@@ -1,6 +1,9 @@
 import { match, P } from "ts-pattern";
 import {
+	accessibleDirections,
+	accessibleFreeTiles,
 	calculateUserProduction,
+	CITY_HALLS,
 	game,
 	next,
 	ROAD_ROTATIONS,
@@ -42,6 +45,32 @@ const initialGiftReceivedThisRound = (): Record<TileOwner, boolean> => ({
 	blue: false,
 	red: false,
 });
+
+function directionMatch(
+	directions: ReturnType<typeof accessibleDirections>,
+	accessible: ReturnType<typeof accessibleFreeTiles>[number],
+): boolean {
+	return (
+		(directions.up && accessible.up) ||
+		(directions.bottom && accessible.bottom) ||
+		(directions.right && accessible.right) ||
+		(directions.left && accessible.left)
+	);
+}
+
+function notInCenter(x: number, y: number): boolean {
+	for (const [hallX, hallY] of CITY_HALLS) {
+		if (
+			(x === hallX + 1 && y === hallY) ||
+			(x === hallX - 1 && y === hallY) ||
+			(y === hallY + 1 && x === hallX) ||
+			(y === hallY - 1 && x === hallX)
+		) {
+			return false;
+		}
+	}
+	return true;
+}
 
 export type State = {
 	game: Game;
@@ -580,7 +609,28 @@ export const reducer = (state: State, action: Action): State => {
 			const user = state.game.users[state.game.turn];
 			const currentTile = state.game.tiles[`${y}-${x}`];
 			const actionsUsed = state.actionsUsedThisTurn;
-			if (!currentTile.owned || currentTile.owner !== user.color) {
+			if (
+				!currentTile.owned ||
+				currentTile.owner !== user.color ||
+				currentTile.content.type_ !== "empty"
+			) {
+				return state;
+			}
+			const accessible = accessibleFreeTiles(state.game, user).find(
+				(t) => t.x === x && t.y === y,
+			);
+			if (!accessible) {
+				return state;
+			}
+			if (tile.type_ === "road") {
+				if (!directionMatch(accessibleDirections(tile), accessible)) {
+					return state;
+				}
+			} else if (tile.type_ === "production") {
+				if (!notInCenter(x, y)) {
+					return state;
+				}
+			} else {
 				return state;
 			}
 			if (tile.type_ === "road" && state.activeEventEffects?.noRoad) {

@@ -8,16 +8,14 @@ export default function Board() {
 
 	const user = game.users[game.turn];
 	const accessibles = accessibleFreeTiles(game, user);
-	console.log("accessible tiles", accessibles);
 
 	return (
 		<div>
 			{Array.from({ length: 18 }, (_, y) => {
 				return (
-					// biome-ignore lint/suspicious/noArrayIndexKey: <explanation>
 					<div
 						style={{ display: "flex", flexDirection: "row" }}
-						key={y}
+						key={`row-${y}`}
 					>
 						{Array.from({ length: 18 }, (_, x) => {
 							const tile = game.tiles[`${y}-${x}`];

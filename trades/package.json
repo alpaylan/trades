@@ -11,7 +11,13 @@
     "lint": "eslint .",
     "check": "npm run lint && npm run build",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run src/logic/*.test.ts",
+    "test:fuzz": "vitest run src/logic/fuzzer.test.ts",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "evidence:videos": "node scripts/record-evidence-videos.mjs",
+    "evidence:gameplay-videos": "node scripts/record-gameplay-videos.mjs",
+    "evidence:random-viable-video": "node scripts/record-random-viable-video.mjs"
   },
   "dependencies": {
     "react": "^19.0.0",
@@ -20,6 +26,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.22.0",
+    "@playwright/test": "^1.58.2",
     "@types/react": "^19.0.10",
     "@types/react-dom": "^19.0.4",
     "@vitejs/plugin-react": "^4.3.4",

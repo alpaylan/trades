@@ -358,7 +358,6 @@ export const emptyDirections: AccessibleDirections = {
 
 export function accessibleFreeTiles(game: Game, user: User): AccessibleTile[] {
     const startPoint = userCapital[user.color];
-    console.log("start point", startPoint);
     // assume we have a crossroad at the capital
     const visited: Point[] = [];
     const toVisit: Point[] = [startPoint];
@@ -370,16 +369,12 @@ export function accessibleFreeTiles(game: Game, user: User): AccessibleTile[] {
         visited.push(p)
         const tile = game.tiles[`${p.y}-${p.x}`];
         if (tile.owned && tile.owner === user.color) {
-            console.log("owned tile", tile);
             switch (tile.content.type_) {
                 case "road":
                 case "hall": {
                     const directions = accessibleDirections(tile.content);
-                    console.log("tile", tile);
-                    console.log("directions", directions);
                     if (directions.up) {
                         const up = point(tile.x, tile.y - 1);
-                        console.log("up", up);
 
                         if (!visited.some((p) => p.x === up.x && p.y === up.y)) {
                             match(game.tiles[`${up.y}-${up.x}`])
@@ -394,7 +389,6 @@ export function accessibleFreeTiles(game: Game, user: User): AccessibleTile[] {
 
                                 })
                                 .with({ owned: true, owner: user.color, content: { type_: "road" } }, (upTile) => {
-                                    console.log("up tile is a road", upTile);
                                     const upTileDirections = accessibleDirections(upTile.content);
                                     if (upTileDirections.bottom) {
                                         toVisit.push(up);
@@ -417,7 +411,6 @@ export function accessibleFreeTiles(game: Game, user: User): AccessibleTile[] {
                                     }
                                 })
                                 .with({ owned: true, owner: user.color, content: { type_: "road" } }, (rightTile) => {
-                                    console.log("right tile is a road", rightTile);
                                     const rightTileDirections = accessibleDirections(rightTile.content);
                                     if (rightTileDirections.left) {
                                         toVisit.push(right);
@@ -440,7 +433,6 @@ export function accessibleFreeTiles(game: Game, user: User): AccessibleTile[] {
                                     }
                                 })
                                 .with({ owned: true, owner: user.color, content: { type_: "road" } }, (bottomTile) => {
-                                    console.log("bottom tile is a road", bottomTile);
                                     const bottomTileDirections = accessibleDirections(bottomTile.content);
                                     if (bottomTileDirections.up) {
                                         toVisit.push(bottom);
@@ -451,12 +443,10 @@ export function accessibleFreeTiles(game: Game, user: User): AccessibleTile[] {
                     }
                     if (directions.left) {
                         const left = point(tile.x - 1, tile.y);
-                        console.log("left", left);
                         if (!visited.some((p) => p.x === left.x && p.y === left.y)) {
                             match(game.tiles[`${left.y}-${left.x}`])
                                 .with(P.union({ owned: false }, { owned: true, owner: user.color, content: { type_: "empty" } }), (leftTile) => {
                                     // free tile or empty tile
-                                    console.log("left tile is free or empty", leftTile);
                                     const accessibleTile = accessible.find((t) => t.x === left.x && t.y === left.y);
                                     if (accessibleTile) {
                                         accessibleTile.right = true;
@@ -465,7 +455,6 @@ export function accessibleFreeTiles(game: Game, user: User): AccessibleTile[] {
                                     }
                                 })
                                 .with({ owned: true, owner: user.color, content: { type_: "road" } }, (leftTile) => {
-                                    console.log("left tile is a road", leftTile);
                                     const leftTileDirections = accessibleDirections(leftTile.content);
                                     if (leftTileDirections.right) {
                                         toVisit.push(left);
