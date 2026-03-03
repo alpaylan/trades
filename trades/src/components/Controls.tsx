@@ -1,5 +1,132 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useGlobalContext } from "../logic/State";
+
+const SPEC_DOT_POSITIONS: Record<number, [number, number][]> = {
+	1: [[50, 50]],
+	2: [[25, 25], [75, 75]],
+	3: [[25, 25], [50, 50], [75, 75]],
+	4: [[25, 25], [75, 25], [25, 75], [75, 75]],
+	5: [[25, 25], [75, 25], [50, 50], [25, 75], [75, 75]],
+	6: [[25, 25], [75, 25], [25, 50], [75, 50], [25, 75], [75, 75]],
+};
+
+function SpeculativeDiceFace({ value, size = 80 }: { value: number; size?: number }) {
+	const dots = SPEC_DOT_POSITIONS[value] ?? [];
+	const dotR = size * 0.09;
+	return (
+		<svg width={size} height={size} viewBox="0 0 100 100">
+			<rect
+				x={2}
+				y={2}
+				width={96}
+				height={96}
+				rx={14}
+				ry={14}
+				fill="#fff"
+				stroke="#333"
+				strokeWidth={2.5}
+			/>
+			{dots.map(([cx, cy], i) => (
+				<circle key={i} cx={cx} cy={cy} r={dotR} fill="#222" />
+			))}
+		</svg>
+	);
+}
+
+function SpeculativeDiceOverlay({ onDone }: { onDone: (roll: number) => void }) {
+	const [phase, setPhase] = useState<"rolling" | "result">("rolling");
+	const [value, setValue] = useState(1);
+
+	// simple animation
+	useEffect(() => {
+		let rolling = true;
+		let t = 0;
+		const tick = () => {
+			if (!rolling) return;
+			setValue(Math.floor(Math.random() * 6) + 1);
+			t += 1;
+			if (t < 15) {
+				setTimeout(tick, 80);
+			} else {
+				const finalRoll = Math.floor(Math.random() * 6) + 1;
+				setValue(finalRoll);
+				setPhase("result");
+			}
+		};
+		setTimeout(tick, 80);
+		return () => {
+			rolling = false;
+		};
+	}, []);
+
+	return (
+		<div
+			style={{
+				position: "fixed",
+				inset: 0,
+				zIndex: 10000,
+				display: "flex",
+				alignItems: "center",
+				justifyContent: "center",
+				backgroundColor: "rgba(0,0,0,0.55)",
+			}}
+		>
+			<div
+				style={{
+					background: "#fff",
+					borderRadius: 14,
+					padding: "24px 32px",
+					boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+					textAlign: "center",
+					minWidth: 260,
+				}}
+			>
+				<p style={{ margin: "0 0 4px", fontWeight: 700, fontSize: 16 }}>
+					{phase === "rolling" ? "Rolling..." : `You rolled ${value}`}
+				</p>
+				{phase === "result" && (
+					<p style={{ margin: "0 0 12px", fontSize: 12, color: "#555" }}>
+						{value === 1 || value === 2
+							? "Outcome: downgrade one gold production (if you have any)."
+							: value === 3 || value === 4
+								? "Outcome: no change to your gold production."
+								: "Outcome: upgrade a gold production or gain 1 free production tile (if possible)."}
+					</p>
+				)}
+				<div
+					style={{
+						display: "inline-block",
+						animation: phase === "rolling" ? "dice-shake 0.15s infinite alternate" : undefined,
+						transition: "transform 0.3s",
+						transform: phase === "rolling" ? undefined : "scale(1.05)",
+					}}
+				>
+					<SpeculativeDiceFace value={value} size={90} />
+				</div>
+				{phase === "result" && (
+					<div style={{ marginTop: 16 }}>
+						<button
+							type="button"
+							onClick={() => onDone(value)}
+							style={{
+								padding: "8px 24px",
+								borderRadius: 8,
+								border: "none",
+								background: "#2e7d32",
+								color: "#fff",
+								cursor: "pointer",
+								fontWeight: 600,
+								fontSize: 14,
+							}}
+						>
+							OK
+						</button>
+					</div>
+				)}
+			</div>
+		</div>
+	);
+}
 import Inventory from "./Inventory";
 import RotationSelector from "./RotationSelector";
 import Store from "./Store";
@@ -8,6 +135,7 @@ import Turn from "./Turn";
 export default function Controls() {
 	const { state, dispatch } = useGlobalContext();
 	const [hoveredRotation, setHoveredRotation] = useState<90 | 180 | 270 | null>(null);
+	const [showSpeculativeDice, setShowSpeculativeDice] = useState(false);
 
 	const user = state.game.users[state.game.turn];
 	const actionsUsed = state.actionsUsedThisTurn ?? 0;
@@ -18,6 +146,9 @@ export default function Controls() {
 	const lbPending =
 		state.activeEventEffects?.logisticBreakthrough &&
 		state.logisticBreakthroughPicks < 2;
+	const speculativeActive = state.activeEventEffects?.speculativeInvestment ?? false;
+	const speculativePending =
+		speculativeActive && !state.speculativeInvestmentResolved[state.game.turn];
 
 	const pt = state.pendingTurn;
 	const tile = pt ? state.game.tiles[`${pt.y}-${pt.x}`] : null;
@@ -35,11 +166,35 @@ export default function Controls() {
 				actionsLeft={actionsLeft}
 			/>
 			<div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
+				{speculativePending && (
+					<button
+						type="button"
+						onClick={() => setShowSpeculativeDice(true)}
+						title="Roll for Speculative Investment"
+						style={{
+							backgroundColor: "#fff3e0",
+							color: "#e65100",
+							borderRadius: "4px",
+							border: "1px solid rgba(230,81,0,0.5)",
+							fontWeight: 600,
+						}}
+					>
+						Roll dice
+					</button>
+				)}
 				<button
 					type="button"
 					onClick={() => dispatch({ type: "END_TURN" })}
-					disabled={!!giftPending || !!lbPending}
-					title={giftPending ? "Take your free action tile first" : lbPending ? "Pick your 2 free road tiles first" : undefined}
+					disabled={!!giftPending || !!lbPending || speculativePending}
+					title={
+						giftPending
+							? "Take your free action tile first"
+							: lbPending
+								? "Pick your 2 free road tiles first"
+								: speculativePending
+									? "Roll Speculative Investment first"
+									: undefined
+					}
 					style={{
 						backgroundColor: actionsLeft === 0 ? "#ffb300" : "#e0e0e0",
 						borderRadius: "4px",
@@ -57,6 +212,14 @@ export default function Controls() {
 					Undo
 				</button>
 			</div>
+			{showSpeculativeDice && (
+				<SpeculativeDiceOverlay
+					onDone={(roll) => {
+						dispatch({ type: "SPECULATIVE_ROLL", payload: { roll } });
+						setShowSpeculativeDice(false);
+					}}
+				/>
+			)}
 			<Inventory inventory={user.inventory} />
 			<RotationSelector />
 			{state.pendingTurn && isLOrT && road && (

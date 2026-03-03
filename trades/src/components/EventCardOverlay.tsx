@@ -27,6 +27,10 @@ const CARD_IMAGES: Record<string, { src: string; alt: string }> = {
 	extended_timeline: { src: "/assets/event-card-extended-timeline.png", alt: "Extended Timeline" },
 	bureaucratic_delay: { src: "/assets/event-card-bureaucratic-delay.png", alt: "Bureaucratic Delay" },
 	logistic_breakthrough: { src: "/assets/event-card-logistic-breakthrough.png", alt: "Logistic Breakthrough" },
+	market_holiday: { src: "/assets/event-card-market-holiday.png", alt: "Market Holiday" },
+	material_surplus: { src: "/assets/event-card-material-surplus.png", alt: "Material Surplus" },
+	supply_chain_shortage: { src: "/assets/event-card-supply-chain-shortage.png", alt: "Supply Chain Shortage" },
+	speculative_investment: { src: "/assets/event-card-speculative-investment.png", alt: "Speculative Investment" },
 };
 
 export default function EventCardOverlay() {
@@ -74,7 +78,13 @@ export default function EventCardOverlay() {
 																	? "Bureaucratic Delay event card"
 																	: state.eventCardContent === "logistic_breakthrough"
 																		? "Logistic Breakthrough event card"
-																		: "Event card"
+																		: state.eventCardContent === "market_holiday"
+																			? "Market Holiday event card"
+													: state.eventCardContent === "supply_chain_shortage"
+														? "Supply Chain Shortage event card"
+														: state.eventCardContent === "material_surplus"
+															? "Material Surplus event card"
+															: "Event card"
 			}
 		>
 			<div

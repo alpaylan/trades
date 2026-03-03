@@ -49,16 +49,24 @@ function StoreItem({
 	const canAct = actionsUsed < 2;
 	const blackFriday = state.activeEventEffects?.blackFriday ?? false;
 	const rapidInflation = state.activeEventEffects?.rapidInflation ?? false;
+	const materialSurplus = state.activeEventEffects?.materialSurplus ?? false;
 	const giftPending =
 		state.activeEventEffects?.gift &&
 		!state.giftReceivedThisRound?.[current];
 	const lbPending =
 		state.activeEventEffects?.logisticBreakthrough &&
 		state.logisticBreakthroughPicks < 2;
+	const speculativePending =
+		state.activeEventEffects?.speculativeInvestment &&
+		!state.speculativeInvestmentResolved[current];
 	const isFreeActionTile = item.type_ === "action" && giftPending;
 	const isFreeRoadTile = item.type_ === "road" && lbPending;
+	const basePrice =
+		materialSurplus && item.type_ === "road" ? Math.max(1, price - 2) : price;
+	const pricedWithDiscounts =
+		blackFriday ? Math.max(0, basePrice - 1) : rapidInflation ? basePrice + 2 : basePrice;
 	const displayPrice =
-		isFreeActionTile || isFreeRoadTile ? 0 : blackFriday ? Math.max(0, price - 1) : rapidInflation ? price + 2 : price;
+		isFreeActionTile || isFreeRoadTile ? 0 : pricedWithDiscounts;
 	const priceTag = blackFriday ? " — Black Friday!" : rapidInflation ? " — Rapid Inflation!" : "";
 	const freeTag = isFreeActionTile ? " — Free gift!" : isFreeRoadTile ? " — Logistic Breakthrough!" : "";
 	const tooltip = showGoldBars
@@ -175,6 +183,11 @@ export default function Store({
 	const lbPending =
 		state.activeEventEffects?.logisticBreakthrough &&
 		state.logisticBreakthroughPicks < 2;
+	const marketHoliday = state.activeEventEffects?.marketHoliday ?? false;
+	const supplyChainShortage = state.activeEventEffects?.supplyChainShortage ?? false;
+	const speculativePending =
+		state.activeEventEffects?.speculativeInvestment &&
+		!state.speculativeInvestmentResolved[state.game.turn];
 	const [showRandomConfirm, setShowRandomConfirm] = useState(false);
 
 	const randomPrice = 5;
@@ -182,10 +195,17 @@ export default function Store({
 	const rapidInflation = state.activeEventEffects?.rapidInflation ?? false;
 	const randomDisplayPrice = blackFriday ? Math.max(0, randomPrice - 1) : rapidInflation ? randomPrice + 2 : randomPrice;
 	const actionsUsed = state.actionsUsedThisTurn ?? 0;
-	const randomDisabled = resources.dollar < randomDisplayPrice || actionsUsed >= 2 || !!lbPending;
+	const randomDisabled = resources.dollar < randomDisplayPrice || actionsUsed >= 2 || !!lbPending || !!speculativePending;
 
 	return (
-		<div id="store">
+		<div
+			id="store"
+			style={
+				marketHoliday || speculativePending
+					? { opacity: 0.4, pointerEvents: "none" }
+					: undefined
+			}
+		>
 			{showRandomConfirm && (
 				<RandomTileConfirmDialog
 					onConfirm={() => {
@@ -257,9 +277,9 @@ export default function Store({
 				id="road-tiles"
 				className="substore"
 				style={
-					giftPending
+					giftPending || supplyChainShortage
 						? {
-								opacity: 0.5,
+								opacity: 0.4,
 								pointerEvents: "none" as const,
 							}
 						: lbPending

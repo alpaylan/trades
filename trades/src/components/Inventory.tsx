@@ -205,6 +205,9 @@ export default function Inventory({
 	const safePassageActive = state.activeEventEffects?.safePassage ?? false;
 	const brokenLogisticsActive = state.activeEventEffects?.brokenLogistics ?? false;
 	const lbPending = state.activeEventEffects?.logisticBreakthrough && state.logisticBreakthroughPicks < 2;
+	const speculativePending =
+		state.activeEventEffects?.speculativeInvestment &&
+		!state.speculativeInvestmentResolved[current];
 
 	const allItems = Object.keys(inventory)
 		.map((tileKey) => [tileKey as TileKey, toTilable(tileKey as TileKey)] as const)
@@ -231,6 +234,7 @@ export default function Inventory({
 		if (safePassageActive && tile.type_ === "action" && tile.action === "block") return true;
 		if (brokenLogisticsActive && tile.type_ === "action" && tile.action === "unblock") return true;
 		if (lbPending) return true;
+		if (speculativePending) return true;
 		return false;
 	};
 
@@ -250,7 +254,7 @@ export default function Inventory({
 		<div
 			id="inventory"
 			style={
-				giftPending
+				giftPending || speculativePending
 					? { opacity: 0.5, pointerEvents: "none" as const }
 					: undefined
 			}

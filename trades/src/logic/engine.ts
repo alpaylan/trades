@@ -44,6 +44,13 @@ const initialGiftReceivedThisRound = (): Record<TileOwner, boolean> => ({
 	red: false,
 });
 
+const initialSpeculativeInvestmentResolved = (): Record<TileOwner, boolean> => ({
+	green: false,
+	orange: false,
+	blue: false,
+	red: false,
+});
+
 function directionMatch(
 	directions: ReturnType<typeof accessibleDirections>,
 	accessible: ReturnType<typeof accessibleFreeTiles>[number],
@@ -83,12 +90,13 @@ export type State = {
 	eventCardTriggerPosition: number;
 	noRoadTestPosition: 1 | 2 | 3;
 	showEventCard: boolean;
-	eventCardContent: "blank" | "end_of_phase_1" | "no_road" | "black_friday" | "gift" | "lucky_streak" | "labor_revolt" | "rapid_inflation" | "structural_collapse" | "safe_passage" | "broken_logistics" | "business_as_usual" | "extended_timeline" | "bureaucratic_delay" | "logistic_breakthrough";
+	eventCardContent: "blank" | "end_of_phase_1" | "no_road" | "black_friday" | "gift" | "lucky_streak" | "labor_revolt" | "rapid_inflation" | "structural_collapse" | "safe_passage" | "broken_logistics" | "business_as_usual" | "extended_timeline" | "bureaucratic_delay" | "logistic_breakthrough" | "market_holiday" | "supply_chain_shortage" | "material_surplus" | "speculative_investment";
 	pendingRoundEnd: boolean;
-	activeEventEffects: { noRoad: boolean; blackFriday: boolean; gift: boolean; luckyStreak: boolean; laborRevolt: boolean; rapidInflation: boolean; safePassage: boolean; brokenLogistics: boolean; bureaucraticDelay: boolean; logisticBreakthrough: boolean };
+	activeEventEffects: { noRoad: boolean; blackFriday: boolean; gift: boolean; luckyStreak: boolean; laborRevolt: boolean; rapidInflation: boolean; safePassage: boolean; brokenLogistics: boolean; bureaucraticDelay: boolean; logisticBreakthrough: boolean; marketHoliday: boolean; supplyChainShortage: boolean; materialSurplus: boolean; speculativeInvestment: boolean };
 	giftReceivedThisRound: Record<TileOwner, boolean>;
-	lastDrawnEventCard: "blank" | "end_of_phase_1" | "no_road" | "black_friday" | "gift" | "lucky_streak" | "labor_revolt" | "rapid_inflation" | "structural_collapse" | "safe_passage" | "broken_logistics" | "business_as_usual" | "extended_timeline" | "bureaucratic_delay" | "logistic_breakthrough" | null;
+	lastDrawnEventCard: "blank" | "end_of_phase_1" | "no_road" | "black_friday" | "gift" | "lucky_streak" | "labor_revolt" | "rapid_inflation" | "structural_collapse" | "safe_passage" | "broken_logistics" | "business_as_usual" | "extended_timeline" | "bureaucratic_delay" | "logistic_breakthrough" | "market_holiday" | "supply_chain_shortage" | "material_surplus" | "speculative_investment" | null;
 	lastDrawnWasExtendedTimeline: boolean;
+	speculativeInvestmentResolved: Record<TileOwner, boolean>;
 	logisticBreakthroughPicks: number;
 	randomTilePurchasedThisTurn: boolean;
 	diceRoll: { active: boolean } | null;
@@ -112,11 +120,12 @@ export const initialState = (): State => ({
 	showEventCard: false,
 	eventCardContent: "blank",
 	pendingRoundEnd: false,
-	activeEventEffects: { noRoad: false, blackFriday: false, gift: false, luckyStreak: false, laborRevolt: false, rapidInflation: false, safePassage: false, brokenLogistics: false, bureaucraticDelay: false, logisticBreakthrough: false },
+	activeEventEffects: { noRoad: false, blackFriday: false, gift: false, luckyStreak: false, laborRevolt: false, rapidInflation: false, safePassage: false, brokenLogistics: false, bureaucraticDelay: false, logisticBreakthrough: false, marketHoliday: false, supplyChainShortage: false, materialSurplus: false, speculativeInvestment: false },
 	giftReceivedThisRound: initialGiftReceivedThisRound(),
 	lastDrawnEventCard: null,
 	lastDrawnWasExtendedTimeline: false,
 	logisticBreakthroughPicks: 0,
+	speculativeInvestmentResolved: initialSpeculativeInvestmentResolved(),
 	randomTilePurchasedThisTurn: false,
 	diceRoll: null,
 	history: [],
@@ -139,7 +148,8 @@ export type Action =
 	| { type: "DISMISS_EVENT_CARD" }
 	| { type: "SHOW_EVENT_CARD_PREVIEW" }
 	| { type: "START_DICE_ROLL"; payload: { price: number } }
-	| { type: "FINISH_DICE_ROLL"; payload: { tile: Tilable | null } };
+	| { type: "FINISH_DICE_ROLL"; payload: { tile: Tilable | null } }
+	| { type: "SPECULATIVE_ROLL"; payload: { roll: number } };
 
 export const UI_ONLY_ACTION_TYPES: Action["type"][] = [
 	"SELECT_TILE",
@@ -159,6 +169,7 @@ export const AUTHORITATIVE_ACTION_TYPES: Action["type"][] = [
 	"TOLL_TILE",
 	"PLACE_TILE",
 	"DISMISS_EVENT_CARD",
+	"SPECULATIVE_ROLL",
 ];
 
 export const reducer = (state: State, action: Action): State => {
@@ -180,7 +191,7 @@ export const reducer = (state: State, action: Action): State => {
 			"SET_ROTATION",
 			"SET_PENDING_TURN",
 			"CLEAR_PENDING_TURN",
-			"DISMISS_EVENT_CARD",
+	"DISMISS_EVENT_CARD",
 			"UNDO",
 		].includes(innerAction.type);
 	};
@@ -245,6 +256,9 @@ export const reducer = (state: State, action: Action): State => {
 			};
 		})
 		.with({ type: "END_TURN" }, () => {
+			if (state.activeEventEffects?.speculativeInvestment && !state.speculativeInvestmentResolved[state.game.turn]) {
+				return state;
+			}
 			if (state.activeEventEffects?.logisticBreakthrough && state.logisticBreakthroughPicks < 2) {
 				return state;
 			}
@@ -282,34 +296,42 @@ export const reducer = (state: State, action: Action): State => {
 					!drawCard
 						? "blank"
 						: cardIndex === 1
-							? "structural_collapse"
+							? "black_friday"
 							: cardIndex === 2
-								? "labor_revolt"
+								? "extended_timeline"
 								: cardIndex === 3
-									? "logistic_breakthrough"
+									? "speculative_investment"
 									: cardIndex === 4
 										? "no_road"
 										: cardIndex === 5
-											? "extended_timeline"
+											? "labor_revolt"
 											: cardIndex === 6
 												? "gift"
 												: cardIndex === 7
-													? "black_friday"
+													? "structural_collapse"
 													: cardIndex === 8
 														? "lucky_streak"
 														: cardIndex === 9
 															? "safe_passage"
 															: cardIndex === 10
-															? "rapid_inflation"
-															: cardIndex === 11
-															? "business_as_usual"
-															: cardIndex === 12
-															? "broken_logistics"
-															: cardIndex === 13
-															? "bureaucratic_delay"
-															: newEventCards === state.eventCardTriggerPosition
-																? "end_of_phase_1"
-																: "blank";
+																? "rapid_inflation"
+																: cardIndex === 11
+																	? "business_as_usual"
+																	: cardIndex === 12
+																		? "broken_logistics"
+																		: cardIndex === 13
+																			? "bureaucratic_delay"
+																			: cardIndex === 14
+																				? "logistic_breakthrough"
+																				: cardIndex === 15
+																					? "market_holiday"
+																					: cardIndex === 16
+																						? "supply_chain_shortage"
+																						: cardIndex === 17
+																							? "material_surplus"
+																							: newEventCards === state.eventCardTriggerPosition
+																								? "end_of_phase_1"
+																								: "blank";
 
 				if (!drawCard) {
 					const nextRound = (baseGame.round ?? 1) + 1;
@@ -346,8 +368,9 @@ export const reducer = (state: State, action: Action): State => {
 						endedThisRound: initialEndedThisRound(),
 						purchasedThisTurn: initialPurchasedThisTurn(),
 						eventCardsRemaining: newEventCards,
-						activeEventEffects: { noRoad: false, blackFriday: false, gift: false, luckyStreak: false, laborRevolt: false, rapidInflation: false, safePassage: false, brokenLogistics: false, bureaucraticDelay: false, logisticBreakthrough: false },
+						activeEventEffects: { noRoad: false, blackFriday: false, gift: false, luckyStreak: false, laborRevolt: false, rapidInflation: false, safePassage: false, brokenLogistics: false, bureaucraticDelay: false, logisticBreakthrough: false, marketHoliday: false, supplyChainShortage: false, materialSurplus: false, speculativeInvestment: false },
 						giftReceivedThisRound: initialGiftReceivedThisRound(),
+						speculativeInvestmentResolved: initialSpeculativeInvestmentResolved(),
 						history: historyState,
 					};
 				}
@@ -391,16 +414,25 @@ export const reducer = (state: State, action: Action): State => {
 			};
 		})
 		.with({ type: "BUY_ITEM" }, (innerAction) => {
+			if (state.activeEventEffects?.marketHoliday) return state;
 			const { item, price } = innerAction.payload;
+			if (state.activeEventEffects?.supplyChainShortage && item.type_ === "road") return state;
 			const user = state.game.users[state.game.turn];
 			const giftPending = state.activeEventEffects?.gift && !state.giftReceivedThisRound?.[user.color];
 			const isFreeActionTile = item.type_ === "action" && giftPending;
 			const lbPending = state.activeEventEffects?.logisticBreakthrough && state.logisticBreakthroughPicks < 2;
 			const isFreeRoadTile = item.type_ === "road" && lbPending;
+			const materialSurplus = state.activeEventEffects?.materialSurplus ?? false;
+			const basePrice =
+				materialSurplus && item.type_ === "road" ? Math.max(1, price - 2) : price;
 			const inflation = state.activeEventEffects?.rapidInflation ? 2 : 0;
-			const effectivePrice = isFreeActionTile || isFreeRoadTile ? 0 : state.activeEventEffects?.blackFriday ? Math.max(0, price - 1) : price + inflation;
+			const pricedWithDiscounts = state.activeEventEffects?.blackFriday ? Math.max(0, basePrice - 1) : basePrice + inflation;
+			const effectivePrice = isFreeActionTile || isFreeRoadTile ? 0 : pricedWithDiscounts;
 			const purchasedItem: Tilable = item;
 			if (state.actionsUsedThisTurn >= 2) {
+				return state;
+			}
+			if (state.activeEventEffects?.speculativeInvestment && !state.speculativeInvestmentResolved[state.game.turn]) {
 				return state;
 			}
 			if (user.resources.dollar < effectivePrice) {
@@ -517,6 +549,9 @@ export const reducer = (state: State, action: Action): State => {
 			};
 		})
 		.with(P.union({ type: "BLOCK_TILE" }, { type: "UNBLOCK_TILE" }), (innerAction) => {
+			if (state.activeEventEffects?.speculativeInvestment && !state.speculativeInvestmentResolved[state.game.turn]) {
+				return state;
+			}
 			const { x, y } = innerAction.payload;
 			const user = state.game.users[state.game.turn];
 			const tile = state.game.tiles[`${y}-${x}`];
@@ -592,6 +627,9 @@ export const reducer = (state: State, action: Action): State => {
 			};
 		})
 		.with({ type: "TOLL_TILE" }, (innerAction) => {
+			if (state.activeEventEffects?.speculativeInvestment && !state.speculativeInvestmentResolved[state.game.turn]) {
+				return state;
+			}
 			const { x, y } = innerAction.payload;
 			const user = state.game.users[state.game.turn];
 			const tile = state.game.tiles[`${y}-${x}`];
@@ -646,6 +684,9 @@ export const reducer = (state: State, action: Action): State => {
 			};
 		})
 		.with({ type: "PLACE_TILE" }, (innerAction) => {
+			if (state.activeEventEffects?.speculativeInvestment && !state.speculativeInvestmentResolved[state.game.turn]) {
+				return state;
+			}
 			const { x, y, tile } = innerAction.payload;
 			const user = state.game.users[state.game.turn];
 			const currentTile = state.game.tiles[`${y}-${x}`];
@@ -808,6 +849,10 @@ export const reducer = (state: State, action: Action): State => {
 					brokenLogistics: state.eventCardContent === "broken_logistics",
 					bureaucraticDelay: state.eventCardContent === "bureaucratic_delay",
 					logisticBreakthrough: state.eventCardContent === "logistic_breakthrough",
+					marketHoliday: state.eventCardContent === "market_holiday",
+					supplyChainShortage: state.eventCardContent === "supply_chain_shortage",
+					materialSurplus: state.eventCardContent === "material_surplus",
+					speculativeInvestment: state.eventCardContent === "speculative_investment",
 				};
 
 			return {
@@ -834,6 +879,7 @@ export const reducer = (state: State, action: Action): State => {
 				giftReceivedThisRound: initialGiftReceivedThisRound(),
 				lastDrawnEventCard: isExtendedTimeline ? state.lastDrawnEventCard : state.eventCardContent,
 				lastDrawnWasExtendedTimeline: isExtendedTimeline,
+				speculativeInvestmentResolved: activeEventEffects.speculativeInvestment ? initialSpeculativeInvestmentResolved() : state.speculativeInvestmentResolved,
 				logisticBreakthroughPicks: 0,
 				history: historyState,
 			};
@@ -847,9 +893,13 @@ export const reducer = (state: State, action: Action): State => {
 				showEventCard: true,
 				eventCardContent: state.lastDrawnEventCard as Exclude<State["eventCardContent"], "blank">,
 				pendingRoundEnd: false,
+				speculativeInvestmentResolved: state.activeEventEffects.speculativeInvestment ? initialSpeculativeInvestmentResolved() : state.speculativeInvestmentResolved,
 			};
 		})
 		.with({ type: "START_DICE_ROLL" }, (innerAction) => {
+			if (state.activeEventEffects?.marketHoliday) return state;
+			if (state.activeEventEffects?.supplyChainShortage) return state;
+			if (state.activeEventEffects?.speculativeInvestment && !state.speculativeInvestmentResolved[state.game.turn]) return state;
 			const { price } = innerAction.payload;
 			const user = state.game.users[state.game.turn];
 			const inflation = state.activeEventEffects?.rapidInflation ? 2 : 0;
@@ -910,6 +960,128 @@ export const reducer = (state: State, action: Action): State => {
 					[user.color]: updatedUserPurchased,
 				},
 				diceRoll: null,
+			};
+		})
+		.with({ type: "SPECULATIVE_ROLL" }, (innerAction) => {
+			const { roll } = innerAction.payload;
+			if (!state.activeEventEffects?.speculativeInvestment) {
+				return state;
+			}
+			const current = state.game.turn;
+			if (state.speculativeInvestmentResolved[current]) {
+				return state;
+			}
+
+			let gameState = state.game;
+
+			const tiles = gameState.tiles;
+			const entries = Object.entries(tiles).filter(
+				([, t]) =>
+					t.owned &&
+					t.owner === current &&
+					t.content.type_ === "production" &&
+					t.content.production === "dollar",
+			) as [string, (typeof tiles)[string]][];
+
+			const downgradeOne = () => {
+				if (entries.length === 0) return;
+				const sorted = [...entries].sort(
+					([, a], [, b]) => (b.content.level as number) - (a.content.level as number),
+				);
+				const [key, tile] = sorted[0];
+				const level = tile.content.level;
+				if (level > 1) {
+					gameState = {
+						...gameState,
+						tiles: {
+							...gameState.tiles,
+							[key]: {
+								...tile,
+								content: {
+									...tile.content,
+									level: (level - 1) as typeof tile.content.level,
+								},
+							},
+						},
+					};
+				} else {
+					gameState = {
+						...gameState,
+						tiles: {
+							...gameState.tiles,
+							[key]: {
+								...tile,
+								content: { type_: "empty" } as any,
+							},
+						},
+					};
+				}
+			};
+
+			const giveFreeProduction = () => {
+				const user = gameState.users[current];
+				const freeTile: Tilable = {
+					type_: "production",
+					production: "dollar",
+					level: 1,
+				} as const;
+				const key = toKey(freeTile);
+				gameState = {
+					...gameState,
+					users: {
+						...gameState.users,
+						[current]: {
+							...user,
+							inventory: {
+								...user.inventory,
+								[key]: (user.inventory[key] ?? 0) + 1,
+							},
+						},
+					},
+				};
+			};
+
+			const upgradeOrFree = () => {
+				const upgradable = entries.filter(([, t]) => t.content.level < 3);
+				if (upgradable.length === 0) {
+					giveFreeProduction();
+					return;
+				}
+				const sorted = [...upgradable].sort(
+					([, a], [, b]) => (a.content.level as number) - (b.content.level as number),
+				);
+				const [key, tile] = sorted[0];
+				const level = tile.content.level;
+				gameState = {
+					...gameState,
+					tiles: {
+						...gameState.tiles,
+						[key]: {
+							...tile,
+							content: {
+								...tile.content,
+								level: (level + 1) as typeof tile.content.level,
+							},
+						},
+					},
+				};
+			};
+
+			if (roll === 1 || roll === 2) {
+				downgradeOne();
+			} else if (roll === 5 || roll === 6) {
+				upgradeOrFree();
+			}
+
+			const updatedGame = updateUserProduction(gameState, current);
+
+			return {
+				...state,
+				game: updatedGame,
+				speculativeInvestmentResolved: {
+					...state.speculativeInvestmentResolved,
+					[current]: true,
+				},
 			};
 		})
 		.exhaustive() as State;
