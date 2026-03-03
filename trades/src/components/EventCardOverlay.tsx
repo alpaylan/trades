@@ -23,6 +23,10 @@ const CARD_IMAGES: Record<string, { src: string; alt: string }> = {
 	structural_collapse: { src: "/assets/event-card-structural-collapse.png", alt: "Structural Collapse" },
 	safe_passage: { src: "/assets/event-card-safe-passage.png", alt: "Safe Passage" },
 	broken_logistics: { src: "/assets/event-card-broken-logistics.png", alt: "Broken Logistics" },
+	business_as_usual: { src: "/assets/event-card-business-as-usual.png", alt: "Business as Usual" },
+	extended_timeline: { src: "/assets/event-card-extended-timeline.png", alt: "Extended Timeline" },
+	bureaucratic_delay: { src: "/assets/event-card-bureaucratic-delay.png", alt: "Bureaucratic Delay" },
+	logistic_breakthrough: { src: "/assets/event-card-logistic-breakthrough.png", alt: "Logistic Breakthrough" },
 };
 
 export default function EventCardOverlay() {
@@ -32,6 +36,8 @@ export default function EventCardOverlay() {
 
 	const isPreview = !state.pendingRoundEnd;
 	const cardInfo = CARD_IMAGES[state.eventCardContent];
+	const showExtendedStack = isPreview && state.lastDrawnWasExtendedTimeline;
+	const extendedCardInfo = CARD_IMAGES["extended_timeline"];
 
 	return (
 		<div
@@ -60,7 +66,15 @@ export default function EventCardOverlay() {
 													? "Safe Passage event card"
 													: state.eventCardContent === "broken_logistics"
 														? "Broken Logistics event card"
-														: "Event card"
+														: state.eventCardContent === "business_as_usual"
+															? "Business as Usual event card"
+															: state.eventCardContent === "extended_timeline"
+																? "Extended Timeline event card"
+																: state.eventCardContent === "bureaucratic_delay"
+																	? "Bureaucratic Delay event card"
+																	: state.eventCardContent === "logistic_breakthrough"
+																		? "Logistic Breakthrough event card"
+																		: "Event card"
 			}
 		>
 			<div
@@ -68,42 +82,70 @@ export default function EventCardOverlay() {
 				onClick={(e) => e.stopPropagation()}
 			>
 				{isPreview ? (
-					<div
-						className="event-card-face"
-						style={{
-							position: "relative",
-							width: "100%",
-							height: "100%",
-							borderRadius: 10,
-							boxShadow: "0 8px 24px rgba(0, 0, 0, 0.3)",
-							border: "2px solid #1e1e1e",
-							overflow: "hidden",
-							background: "#fff",
-						}}
-					>
-						{cardInfo ? (
-							<img
-								src={cardInfo.src}
-								alt={cardInfo.alt}
-								style={{
-									width: "100%",
-									height: "100%",
-									objectFit: "contain",
-								}}
-							/>
-						) : (
+					<div style={{ position: "relative", width: 300, height: 420 }}>
+						{showExtendedStack && (
 							<div
 								style={{
-									display: "flex",
-									alignItems: "center",
-									justifyContent: "center",
-									minHeight: "100%",
-									color: "rgba(0,0,0,0.35)",
+									position: "absolute",
+									top: 0,
+									left: -180,
+									width: 300,
+									height: 420,
+									borderRadius: 10,
+									boxShadow: "0 4px 16px rgba(0, 0, 0, 0.25)",
+									border: "2px solid #1e1e1e",
+									overflow: "hidden",
+									background: "#fff",
+									transform: "rotate(-45deg)",
+									transformOrigin: "center center",
+									zIndex: 1,
 								}}
 							>
-								—
+								<img
+									src={extendedCardInfo.src}
+									alt={extendedCardInfo.alt}
+									style={{ width: "100%", height: "100%", objectFit: "contain" }}
+								/>
 							</div>
 						)}
+						<div
+							className="event-card-face"
+							style={{
+								position: "relative",
+								width: "100%",
+								height: "100%",
+								borderRadius: 10,
+								boxShadow: "0 8px 24px rgba(0, 0, 0, 0.3)",
+								border: "2px solid #1e1e1e",
+								overflow: "hidden",
+								background: "#fff",
+								zIndex: 2,
+							}}
+						>
+							{cardInfo ? (
+								<img
+									src={cardInfo.src}
+									alt={cardInfo.alt}
+									style={{
+										width: "100%",
+										height: "100%",
+										objectFit: "contain",
+									}}
+								/>
+							) : (
+								<div
+									style={{
+										display: "flex",
+										alignItems: "center",
+										justifyContent: "center",
+										minHeight: "100%",
+										color: "rgba(0,0,0,0.35)",
+									}}
+								>
+									—
+								</div>
+							)}
+						</div>
 					</div>
 				) : (
 					<div className="event-card-inner">

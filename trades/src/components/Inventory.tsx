@@ -204,6 +204,7 @@ export default function Inventory({
 	const noRoadActive = state.activeEventEffects?.noRoad ?? false;
 	const safePassageActive = state.activeEventEffects?.safePassage ?? false;
 	const brokenLogisticsActive = state.activeEventEffects?.brokenLogistics ?? false;
+	const lbPending = state.activeEventEffects?.logisticBreakthrough && state.logisticBreakthroughPicks < 2;
 
 	const allItems = Object.keys(inventory)
 		.map((tileKey) => [tileKey as TileKey, toTilable(tileKey as TileKey)] as const)
@@ -229,6 +230,7 @@ export default function Inventory({
 		if (noRoadActive && tile.type_ === "road") return true;
 		if (safePassageActive && tile.type_ === "action" && tile.action === "block") return true;
 		if (brokenLogisticsActive && tile.type_ === "action" && tile.action === "unblock") return true;
+		if (lbPending) return true;
 		return false;
 	};
 

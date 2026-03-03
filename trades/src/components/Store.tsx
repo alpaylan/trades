@@ -52,13 +52,18 @@ function StoreItem({
 	const giftPending =
 		state.activeEventEffects?.gift &&
 		!state.giftReceivedThisRound?.[current];
+	const lbPending =
+		state.activeEventEffects?.logisticBreakthrough &&
+		state.logisticBreakthroughPicks < 2;
 	const isFreeActionTile = item.type_ === "action" && giftPending;
+	const isFreeRoadTile = item.type_ === "road" && lbPending;
 	const displayPrice =
-		isFreeActionTile ? 0 : blackFriday ? Math.max(0, price - 1) : rapidInflation ? price + 2 : price;
+		isFreeActionTile || isFreeRoadTile ? 0 : blackFriday ? Math.max(0, price - 1) : rapidInflation ? price + 2 : price;
 	const priceTag = blackFriday ? " — Black Friday!" : rapidInflation ? " — Rapid Inflation!" : "";
+	const freeTag = isFreeActionTile ? " — Free gift!" : isFreeRoadTile ? " — Logistic Breakthrough!" : "";
 	const tooltip = showGoldBars
-		? `${text} (cost: ${displayPrice} gold${priceTag}${isFreeActionTile ? " — Free gift!" : ""})`
-		: `${text} (cost: ${displayPrice}${priceTag}${isFreeActionTile ? " — Free gift!" : ""})`;
+		? `${text} (cost: ${displayPrice} gold${priceTag}${freeTag})`
+		: `${text} (cost: ${displayPrice}${priceTag}${freeTag})`;
 
 	const disabled = resources.dollar < displayPrice || !canAct;
 
@@ -71,6 +76,7 @@ function StoreItem({
 				if (disabled) return;
 				dispatch({ type: "BUY_ITEM", payload: { item, price } });
 			}}
+			style={disabled ? { opacity: 0.4, pointerEvents: "none" } : undefined}
 		>
 			{showGoldBars ? (
 				<GoldBars count={showGoldBars.iconCount} size={16} />
@@ -166,6 +172,9 @@ export default function Store({
 	const giftPending =
 		state.activeEventEffects?.gift &&
 		!state.giftReceivedThisRound?.[current];
+	const lbPending =
+		state.activeEventEffects?.logisticBreakthrough &&
+		state.logisticBreakthroughPicks < 2;
 	const [showRandomConfirm, setShowRandomConfirm] = useState(false);
 
 	const randomPrice = 5;
@@ -173,10 +182,10 @@ export default function Store({
 	const rapidInflation = state.activeEventEffects?.rapidInflation ?? false;
 	const randomDisplayPrice = blackFriday ? Math.max(0, randomPrice - 1) : rapidInflation ? randomPrice + 2 : randomPrice;
 	const actionsUsed = state.actionsUsedThisTurn ?? 0;
-	const randomDisabled = resources.dollar < randomDisplayPrice || actionsUsed >= 2;
+	const randomDisabled = resources.dollar < randomDisplayPrice || actionsUsed >= 2 || !!lbPending;
 
 	return (
-		<div id="store" >
+		<div id="store">
 			{showRandomConfirm && (
 				<RandomTileConfirmDialog
 					onConfirm={() => {
@@ -190,7 +199,13 @@ export default function Store({
 				/>
 			)}
 			{state.diceRoll?.active && <DiceRoll />}
-			<div id="action-tiles" className="substore">
+			<div id="action-tiles" className="substore"
+				style={
+					lbPending
+						? { opacity: 0.5, pointerEvents: "none" as const }
+						: undefined
+				}
+			>
 				{giftPending && (
 					<div
 						style={{
@@ -247,9 +262,29 @@ export default function Store({
 								opacity: 0.5,
 								pointerEvents: "none" as const,
 							}
+						: lbPending
+						? { flexWrap: "wrap" as const }
 						: undefined
 				}
 			>
+				{lbPending && (
+					<div
+						style={{
+							width: "100%",
+							padding: "4px 8px",
+							backgroundColor: "#e3f2fd",
+							border: "1px solid #64b5f6",
+							borderRadius: 4,
+							fontSize: 11,
+							color: "#1565c0",
+							fontWeight: 600,
+							textAlign: "center",
+							whiteSpace: "nowrap",
+						}}
+					>
+						Pick {2 - state.logisticBreakthroughPicks} free road tile{2 - state.logisticBreakthroughPicks > 1 ? "s" : ""}!
+					</div>
+				)}
 				<StoreItem
 					resources={resources}
 					price={2}
@@ -285,6 +320,11 @@ export default function Store({
 					onClick={() => {
 						if (!randomDisabled) setShowRandomConfirm(true);
 					}}
+					style={
+						randomDisabled
+							? { opacity: 0.4, pointerEvents: "none" as const }
+							: undefined
+					}
 				>
 					<img src="/assets/question.svg" alt="random tile icon" title={`Random road tile (cost: ${randomDisplayPrice})`} />
 					<span>{randomDisplayPrice}</span>
@@ -294,7 +334,7 @@ export default function Store({
 				id="production-tiles"
 				className="substore"
 				style={
-					giftPending
+					giftPending || lbPending
 						? {
 								opacity: 0.5,
 								pointerEvents: "none" as const,

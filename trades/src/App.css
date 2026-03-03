@@ -430,6 +430,7 @@ button {
 .event-card-preview {
   width: 300px;
   height: 420px;
+  overflow: visible;
 }
 
 @keyframes eventCardDraw {

@@ -15,6 +15,9 @@ export default function Controls() {
 	const giftPending =
 		state.activeEventEffects?.gift &&
 		!state.giftReceivedThisRound?.[state.game.turn];
+	const lbPending =
+		state.activeEventEffects?.logisticBreakthrough &&
+		state.logisticBreakthroughPicks < 2;
 
 	const pt = state.pendingTurn;
 	const tile = pt ? state.game.tiles[`${pt.y}-${pt.x}`] : null;
@@ -35,8 +38,8 @@ export default function Controls() {
 				<button
 					type="button"
 					onClick={() => dispatch({ type: "END_TURN" })}
-					disabled={giftPending}
-					title={giftPending ? "Take your free action tile first" : undefined}
+					disabled={!!giftPending || !!lbPending}
+					title={giftPending ? "Take your free action tile first" : lbPending ? "Pick your 2 free road tiles first" : undefined}
 					style={{
 						backgroundColor: actionsLeft === 0 ? "#ffb300" : "#e0e0e0",
 						borderRadius: "4px",

@@ -83,11 +83,13 @@ export type State = {
 	eventCardTriggerPosition: number;
 	noRoadTestPosition: 1 | 2 | 3;
 	showEventCard: boolean;
-	eventCardContent: "blank" | "end_of_phase_1" | "no_road" | "black_friday" | "gift" | "lucky_streak" | "labor_revolt" | "rapid_inflation" | "structural_collapse" | "safe_passage" | "broken_logistics";
+	eventCardContent: "blank" | "end_of_phase_1" | "no_road" | "black_friday" | "gift" | "lucky_streak" | "labor_revolt" | "rapid_inflation" | "structural_collapse" | "safe_passage" | "broken_logistics" | "business_as_usual" | "extended_timeline" | "bureaucratic_delay" | "logistic_breakthrough";
 	pendingRoundEnd: boolean;
-	activeEventEffects: { noRoad: boolean; blackFriday: boolean; gift: boolean; luckyStreak: boolean; laborRevolt: boolean; rapidInflation: boolean; safePassage: boolean; brokenLogistics: boolean };
+	activeEventEffects: { noRoad: boolean; blackFriday: boolean; gift: boolean; luckyStreak: boolean; laborRevolt: boolean; rapidInflation: boolean; safePassage: boolean; brokenLogistics: boolean; bureaucraticDelay: boolean; logisticBreakthrough: boolean };
 	giftReceivedThisRound: Record<TileOwner, boolean>;
-	lastDrawnEventCard: "blank" | "end_of_phase_1" | "no_road" | "black_friday" | "gift" | "lucky_streak" | "labor_revolt" | "rapid_inflation" | "structural_collapse" | "safe_passage" | "broken_logistics" | null;
+	lastDrawnEventCard: "blank" | "end_of_phase_1" | "no_road" | "black_friday" | "gift" | "lucky_streak" | "labor_revolt" | "rapid_inflation" | "structural_collapse" | "safe_passage" | "broken_logistics" | "business_as_usual" | "extended_timeline" | "bureaucratic_delay" | "logistic_breakthrough" | null;
+	lastDrawnWasExtendedTimeline: boolean;
+	logisticBreakthroughPicks: number;
 	randomTilePurchasedThisTurn: boolean;
 	diceRoll: { active: boolean } | null;
 	history: State[];
@@ -110,9 +112,11 @@ export const initialState = (): State => ({
 	showEventCard: false,
 	eventCardContent: "blank",
 	pendingRoundEnd: false,
-	activeEventEffects: { noRoad: false, blackFriday: false, gift: false, luckyStreak: false, laborRevolt: false, rapidInflation: false, safePassage: false, brokenLogistics: false },
+	activeEventEffects: { noRoad: false, blackFriday: false, gift: false, luckyStreak: false, laborRevolt: false, rapidInflation: false, safePassage: false, brokenLogistics: false, bureaucraticDelay: false, logisticBreakthrough: false },
 	giftReceivedThisRound: initialGiftReceivedThisRound(),
 	lastDrawnEventCard: null,
+	lastDrawnWasExtendedTimeline: false,
+	logisticBreakthroughPicks: 0,
 	randomTilePurchasedThisTurn: false,
 	diceRoll: null,
 	history: [],
@@ -241,6 +245,9 @@ export const reducer = (state: State, action: Action): State => {
 			};
 		})
 		.with({ type: "END_TURN" }, () => {
+			if (state.activeEventEffects?.logisticBreakthrough && state.logisticBreakthroughPicks < 2) {
+				return state;
+			}
 			const currentTurn = state.game.turn;
 			const actionsUsedThisTurn = state.actionsUsedThisTurn;
 			const endedThisRound =
@@ -277,13 +284,13 @@ export const reducer = (state: State, action: Action): State => {
 						: cardIndex === 1
 							? "structural_collapse"
 							: cardIndex === 2
-								? "broken_logistics"
+								? "labor_revolt"
 								: cardIndex === 3
-									? "labor_revolt"
+									? "logistic_breakthrough"
 									: cardIndex === 4
 										? "no_road"
 										: cardIndex === 5
-											? "end_of_phase_1"
+											? "extended_timeline"
 											: cardIndex === 6
 												? "gift"
 												: cardIndex === 7
@@ -294,8 +301,12 @@ export const reducer = (state: State, action: Action): State => {
 															? "safe_passage"
 															: cardIndex === 10
 															? "rapid_inflation"
-															: cardIndex === 15
-															? "end_of_phase_1"
+															: cardIndex === 11
+															? "business_as_usual"
+															: cardIndex === 12
+															? "broken_logistics"
+															: cardIndex === 13
+															? "bureaucratic_delay"
 															: newEventCards === state.eventCardTriggerPosition
 																? "end_of_phase_1"
 																: "blank";
@@ -335,7 +346,7 @@ export const reducer = (state: State, action: Action): State => {
 						endedThisRound: initialEndedThisRound(),
 						purchasedThisTurn: initialPurchasedThisTurn(),
 						eventCardsRemaining: newEventCards,
-						activeEventEffects: { noRoad: false, blackFriday: false, gift: false, luckyStreak: false, laborRevolt: false, rapidInflation: false, safePassage: false, brokenLogistics: false },
+						activeEventEffects: { noRoad: false, blackFriday: false, gift: false, luckyStreak: false, laborRevolt: false, rapidInflation: false, safePassage: false, brokenLogistics: false, bureaucraticDelay: false, logisticBreakthrough: false },
 						giftReceivedThisRound: initialGiftReceivedThisRound(),
 						history: historyState,
 					};
@@ -384,8 +395,10 @@ export const reducer = (state: State, action: Action): State => {
 			const user = state.game.users[state.game.turn];
 			const giftPending = state.activeEventEffects?.gift && !state.giftReceivedThisRound?.[user.color];
 			const isFreeActionTile = item.type_ === "action" && giftPending;
+			const lbPending = state.activeEventEffects?.logisticBreakthrough && state.logisticBreakthroughPicks < 2;
+			const isFreeRoadTile = item.type_ === "road" && lbPending;
 			const inflation = state.activeEventEffects?.rapidInflation ? 2 : 0;
-			const effectivePrice = isFreeActionTile ? 0 : state.activeEventEffects?.blackFriday ? Math.max(0, price - 1) : price + inflation;
+			const effectivePrice = isFreeActionTile || isFreeRoadTile ? 0 : state.activeEventEffects?.blackFriday ? Math.max(0, price - 1) : price + inflation;
 			const purchasedItem: Tilable = item;
 			if (state.actionsUsedThisTurn >= 2) {
 				return state;
@@ -408,6 +421,10 @@ export const reducer = (state: State, action: Action): State => {
 				[user.color]: updatedUserPurchased,
 			};
 			const giftReceivedThisRound = isFreeActionTile ? { ...state.giftReceivedThisRound, [user.color]: true } : state.giftReceivedThisRound;
+			const newLbPicks = isFreeRoadTile ? state.logisticBreakthroughPicks + 1 : state.logisticBreakthroughPicks;
+			const lbJustCompleted = isFreeRoadTile && newLbPicks === 2;
+			const lbFirstPick = isFreeRoadTile && newLbPicks === 1;
+			const actionsIncrement = lbFirstPick ? 0 : 1;
 
 			return {
 				...state,
@@ -428,7 +445,8 @@ export const reducer = (state: State, action: Action): State => {
 						},
 					},
 				},
-				actionsUsedThisTurn: state.actionsUsedThisTurn + 1,
+				actionsUsedThisTurn: state.actionsUsedThisTurn + actionsIncrement,
+				logisticBreakthroughPicks: newLbPicks,
 				purchasedThisTurn,
 				giftReceivedThisRound,
 				history: historyState,
@@ -755,8 +773,10 @@ export const reducer = (state: State, action: Action): State => {
 			const nextRound = (baseGame.round ?? 1) + 1;
 			const roundStarter = TILE_OWNERS[(nextRound - 1) % TILE_OWNERS.length];
 			const newUsers: typeof baseGame.users = { ...baseGame.users };
-			const laborRevoltActive = state.eventCardContent === "labor_revolt";
-			const structuralCollapseActive = state.eventCardContent === "structural_collapse";
+			const isExtendedTimeline = state.eventCardContent === "extended_timeline";
+			const effectiveCard = isExtendedTimeline ? state.lastDrawnEventCard : state.eventCardContent;
+			const laborRevoltActive = effectiveCard === "labor_revolt";
+			const structuralCollapseActive = effectiveCard === "structural_collapse";
 			for (const owner of TILE_OWNERS) {
 				const user = baseGame.users[owner];
 				const production = calculateUserProduction(baseGame, owner);
@@ -775,16 +795,20 @@ export const reducer = (state: State, action: Action): State => {
 					},
 				};
 			}
-			const activeEventEffects = {
-				noRoad: state.eventCardContent === "no_road",
-				blackFriday: state.eventCardContent === "black_friday",
-				gift: state.eventCardContent === "gift",
-				luckyStreak: state.eventCardContent === "lucky_streak",
-				laborRevolt: state.eventCardContent === "labor_revolt",
-				rapidInflation: state.eventCardContent === "rapid_inflation",
-				safePassage: state.eventCardContent === "safe_passage",
-				brokenLogistics: state.eventCardContent === "broken_logistics",
-			};
+			const activeEventEffects = isExtendedTimeline
+				? state.activeEventEffects
+				: {
+					noRoad: state.eventCardContent === "no_road",
+					blackFriday: state.eventCardContent === "black_friday",
+					gift: state.eventCardContent === "gift",
+					luckyStreak: state.eventCardContent === "lucky_streak",
+					laborRevolt: state.eventCardContent === "labor_revolt",
+					rapidInflation: state.eventCardContent === "rapid_inflation",
+					safePassage: state.eventCardContent === "safe_passage",
+					brokenLogistics: state.eventCardContent === "broken_logistics",
+					bureaucraticDelay: state.eventCardContent === "bureaucratic_delay",
+					logisticBreakthrough: state.eventCardContent === "logistic_breakthrough",
+				};
 
 			return {
 				...state,
@@ -799,7 +823,7 @@ export const reducer = (state: State, action: Action): State => {
 				pendingRotation: null,
 				pendingTurn: null,
 				lastRandomRoll: null,
-				actionsUsedThisTurn: 0,
+				actionsUsedThisTurn: activeEventEffects.bureaucraticDelay ? 2 : 0,
 				randomTilePurchasedThisTurn: false,
 				endedThisRound: initialEndedThisRound(),
 				purchasedThisTurn: initialPurchasedThisTurn(),
@@ -808,7 +832,9 @@ export const reducer = (state: State, action: Action): State => {
 				pendingRoundEnd: false,
 				activeEventEffects,
 				giftReceivedThisRound: initialGiftReceivedThisRound(),
-				lastDrawnEventCard: state.eventCardContent,
+				lastDrawnEventCard: isExtendedTimeline ? state.lastDrawnEventCard : state.eventCardContent,
+				lastDrawnWasExtendedTimeline: isExtendedTimeline,
+				logisticBreakthroughPicks: 0,
 				history: historyState,
 			};
 		})

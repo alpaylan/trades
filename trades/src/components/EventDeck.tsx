@@ -7,7 +7,7 @@ const SQUARE_GRID = [
 ];
 
 const EVENT_CARD_IMAGES: Record<
-	"end_of_phase_1" | "no_road" | "black_friday" | "gift" | "lucky_streak" | "labor_revolt" | "rapid_inflation" | "structural_collapse" | "safe_passage" | "broken_logistics",
+	"end_of_phase_1" | "no_road" | "black_friday" | "gift" | "lucky_streak" | "labor_revolt" | "rapid_inflation" | "structural_collapse" | "safe_passage" | "broken_logistics" | "business_as_usual" | "extended_timeline" | "bureaucratic_delay" | "logistic_breakthrough",
 	string
 > = {
 	end_of_phase_1: "/assets/event-card-end-of-phase-1.png",
@@ -20,6 +20,10 @@ const EVENT_CARD_IMAGES: Record<
 	structural_collapse: "/assets/event-card-structural-collapse.png",
 	safe_passage: "/assets/event-card-safe-passage.png",
 	broken_logistics: "/assets/event-card-broken-logistics.png",
+	business_as_usual: "/assets/event-card-business-as-usual.png",
+	extended_timeline: "/assets/event-card-extended-timeline.png",
+	bureaucratic_delay: "/assets/event-card-bureaucratic-delay.png",
+	logistic_breakthrough: "/assets/event-card-logistic-breakthrough.png",
 };
 
 export default function EventDeck() {
