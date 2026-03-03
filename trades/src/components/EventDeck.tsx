@@ -7,13 +7,27 @@ const SQUARE_GRID = [
 ];
 
 const EVENT_CARD_IMAGES: Record<
-	"end_of_phase_1" | "no_road" | "black_friday" | "gift",
+	"end_of_phase_1" | "no_road" | "black_friday" | "gift" | "lucky_streak" | "labor_revolt" | "rapid_inflation" | "structural_collapse" | "safe_passage" | "broken_logistics" | "business_as_usual" | "extended_timeline" | "bureaucratic_delay" | "logistic_breakthrough" | "market_holiday" | "supply_chain_shortage" | "material_surplus" | "speculative_investment",
 	string
 > = {
 	end_of_phase_1: "/assets/event-card-end-of-phase-1.png",
 	no_road: "/assets/event-card-no-road.png",
 	black_friday: "/assets/event-card-black-friday.png",
 	gift: "/assets/event-card-gift.png",
+	lucky_streak: "/assets/event-card-lucky-streak.png",
+	labor_revolt: "/assets/event-card-labor-revolt.png",
+	rapid_inflation: "/assets/event-card-rapid-inflation.png",
+	structural_collapse: "/assets/event-card-structural-collapse.png",
+	safe_passage: "/assets/event-card-safe-passage.png",
+	broken_logistics: "/assets/event-card-broken-logistics.png",
+	business_as_usual: "/assets/event-card-business-as-usual.png",
+	extended_timeline: "/assets/event-card-extended-timeline.png",
+	bureaucratic_delay: "/assets/event-card-bureaucratic-delay.png",
+	logistic_breakthrough: "/assets/event-card-logistic-breakthrough.png",
+	market_holiday: "/assets/event-card-market-holiday.png",
+	material_surplus: "/assets/event-card-material-surplus.png",
+	supply_chain_shortage: "/assets/event-card-supply-chain-shortage.png",
+	speculative_investment: "/assets/event-card-speculative-investment.png",
 };
 
 export default function EventDeck() {
@@ -33,7 +47,7 @@ export default function EventDeck() {
 				right: "1rem",
 				zIndex: 10,
 				display: "flex",
-				flexDirection: "row-reverse",
+				flexDirection: "row",
 				alignItems: "flex-end",
 				gap: 8,
 			}}

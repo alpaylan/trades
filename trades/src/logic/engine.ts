@@ -7,9 +7,7 @@ import {
 	game,
 	next,
 	ROAD_ROTATIONS,
-	ROAD_TYPES,
 	RESOURCE_TYPES,
-	road,
 	type Game,
 	type RoadRotation,
 	type TileKey,
@@ -40,6 +38,13 @@ const initialPurchasedThisTurn = (): PurchasedThisTurn => ({
 });
 
 const initialGiftReceivedThisRound = (): Record<TileOwner, boolean> => ({
+	green: false,
+	orange: false,
+	blue: false,
+	red: false,
+});
+
+const initialSpeculativeInvestmentResolved = (): Record<TileOwner, boolean> => ({
 	green: false,
 	orange: false,
 	blue: false,
@@ -85,11 +90,16 @@ export type State = {
 	eventCardTriggerPosition: number;
 	noRoadTestPosition: 1 | 2 | 3;
 	showEventCard: boolean;
-	eventCardContent: "blank" | "end_of_phase_1" | "no_road" | "black_friday" | "gift";
+	eventCardContent: "blank" | "end_of_phase_1" | "no_road" | "black_friday" | "gift" | "lucky_streak" | "labor_revolt" | "rapid_inflation" | "structural_collapse" | "safe_passage" | "broken_logistics" | "business_as_usual" | "extended_timeline" | "bureaucratic_delay" | "logistic_breakthrough" | "market_holiday" | "supply_chain_shortage" | "material_surplus" | "speculative_investment";
 	pendingRoundEnd: boolean;
-	activeEventEffects: { noRoad: boolean; blackFriday: boolean; gift: boolean };
+	activeEventEffects: { noRoad: boolean; blackFriday: boolean; gift: boolean; luckyStreak: boolean; laborRevolt: boolean; rapidInflation: boolean; safePassage: boolean; brokenLogistics: boolean; bureaucraticDelay: boolean; logisticBreakthrough: boolean; marketHoliday: boolean; supplyChainShortage: boolean; materialSurplus: boolean; speculativeInvestment: boolean };
 	giftReceivedThisRound: Record<TileOwner, boolean>;
-	lastDrawnEventCard: "blank" | "end_of_phase_1" | "no_road" | "black_friday" | "gift" | null;
+	lastDrawnEventCard: "blank" | "end_of_phase_1" | "no_road" | "black_friday" | "gift" | "lucky_streak" | "labor_revolt" | "rapid_inflation" | "structural_collapse" | "safe_passage" | "broken_logistics" | "business_as_usual" | "extended_timeline" | "bureaucratic_delay" | "logistic_breakthrough" | "market_holiday" | "supply_chain_shortage" | "material_surplus" | "speculative_investment" | null;
+	lastDrawnWasExtendedTimeline: boolean;
+	speculativeInvestmentResolved: Record<TileOwner, boolean>;
+	logisticBreakthroughPicks: number;
+	randomTilePurchasedThisTurn: boolean;
+	diceRoll: { active: boolean } | null;
 	history: State[];
 };
 
@@ -110,9 +120,14 @@ export const initialState = (): State => ({
 	showEventCard: false,
 	eventCardContent: "blank",
 	pendingRoundEnd: false,
-	activeEventEffects: { noRoad: false, blackFriday: false, gift: false },
+	activeEventEffects: { noRoad: false, blackFriday: false, gift: false, luckyStreak: false, laborRevolt: false, rapidInflation: false, safePassage: false, brokenLogistics: false, bureaucraticDelay: false, logisticBreakthrough: false, marketHoliday: false, supplyChainShortage: false, materialSurplus: false, speculativeInvestment: false },
 	giftReceivedThisRound: initialGiftReceivedThisRound(),
 	lastDrawnEventCard: null,
+	lastDrawnWasExtendedTimeline: false,
+	logisticBreakthroughPicks: 0,
+	speculativeInvestmentResolved: initialSpeculativeInvestmentResolved(),
+	randomTilePurchasedThisTurn: false,
+	diceRoll: null,
 	history: [],
 });
 
@@ -131,7 +146,10 @@ export type Action =
 	| { type: "TOLL_TILE"; payload: { x: number; y: number } }
 	| { type: "PLACE_TILE"; payload: { x: number; y: number; tile: Tilable } }
 	| { type: "DISMISS_EVENT_CARD" }
-	| { type: "SHOW_EVENT_CARD_PREVIEW" };
+	| { type: "SHOW_EVENT_CARD_PREVIEW" }
+	| { type: "START_DICE_ROLL"; payload: { price: number } }
+	| { type: "FINISH_DICE_ROLL"; payload: { tile: Tilable | null } }
+	| { type: "SPECULATIVE_ROLL"; payload: { roll: number } };
 
 export const UI_ONLY_ACTION_TYPES: Action["type"][] = [
 	"SELECT_TILE",
@@ -151,6 +169,7 @@ export const AUTHORITATIVE_ACTION_TYPES: Action["type"][] = [
 	"TOLL_TILE",
 	"PLACE_TILE",
 	"DISMISS_EVENT_CARD",
+	"SPECULATIVE_ROLL",
 ];
 
 export const reducer = (state: State, action: Action): State => {
@@ -172,7 +191,7 @@ export const reducer = (state: State, action: Action): State => {
 			"SET_ROTATION",
 			"SET_PENDING_TURN",
 			"CLEAR_PENDING_TURN",
-			"DISMISS_EVENT_CARD",
+	"DISMISS_EVENT_CARD",
 			"UNDO",
 		].includes(innerAction.type);
 	};
@@ -237,6 +256,12 @@ export const reducer = (state: State, action: Action): State => {
 			};
 		})
 		.with({ type: "END_TURN" }, () => {
+			if (state.activeEventEffects?.speculativeInvestment && !state.speculativeInvestmentResolved[state.game.turn]) {
+				return state;
+			}
+			if (state.activeEventEffects?.logisticBreakthrough && state.logisticBreakthroughPicks < 2) {
+				return state;
+			}
 			const currentTurn = state.game.turn;
 			const actionsUsedThisTurn = state.actionsUsedThisTurn;
 			const endedThisRound =
@@ -267,20 +292,46 @@ export const reducer = (state: State, action: Action): State => {
 				const newEventCards = Math.max(0, state.eventCardsRemaining - 1);
 				const drawCard = state.eventCardsRemaining > 0;
 				const cardIndex = 26 - state.eventCardsRemaining;
-				const eventCardContent: "blank" | "end_of_phase_1" | "no_road" | "black_friday" | "gift" =
+				const eventCardContent: State["eventCardContent"] =
 					!drawCard
 						? "blank"
-						: cardIndex === 2
-							? "gift"
-							: cardIndex === 3
-								? "black_friday"
-								: cardIndex === 4
-									? "no_road"
-									: cardIndex === 5
-										? "end_of_phase_1"
-										: newEventCards === state.eventCardTriggerPosition
-											? "end_of_phase_1"
-											: "blank";
+						: cardIndex === 1
+							? "black_friday"
+							: cardIndex === 2
+								? "extended_timeline"
+								: cardIndex === 3
+									? "speculative_investment"
+									: cardIndex === 4
+										? "no_road"
+										: cardIndex === 5
+											? "labor_revolt"
+											: cardIndex === 6
+												? "gift"
+												: cardIndex === 7
+													? "structural_collapse"
+													: cardIndex === 8
+														? "lucky_streak"
+														: cardIndex === 9
+															? "safe_passage"
+															: cardIndex === 10
+																? "rapid_inflation"
+																: cardIndex === 11
+																	? "business_as_usual"
+																	: cardIndex === 12
+																		? "broken_logistics"
+																		: cardIndex === 13
+																			? "bureaucratic_delay"
+																			: cardIndex === 14
+																				? "logistic_breakthrough"
+																				: cardIndex === 15
+																					? "market_holiday"
+																					: cardIndex === 16
+																						? "supply_chain_shortage"
+																						: cardIndex === 17
+																							? "material_surplus"
+																							: newEventCards === state.eventCardTriggerPosition
+																								? "end_of_phase_1"
+																								: "blank";
 
 				if (!drawCard) {
 					const nextRound = (baseGame.round ?? 1) + 1;
@@ -313,11 +364,13 @@ export const reducer = (state: State, action: Action): State => {
 						pendingTurn: null,
 						lastRandomRoll: null,
 						actionsUsedThisTurn: 0,
+						randomTilePurchasedThisTurn: false,
 						endedThisRound: initialEndedThisRound(),
 						purchasedThisTurn: initialPurchasedThisTurn(),
 						eventCardsRemaining: newEventCards,
-						activeEventEffects: { noRoad: false, blackFriday: false, gift: false },
+						activeEventEffects: { noRoad: false, blackFriday: false, gift: false, luckyStreak: false, laborRevolt: false, rapidInflation: false, safePassage: false, brokenLogistics: false, bureaucraticDelay: false, logisticBreakthrough: false, marketHoliday: false, supplyChainShortage: false, materialSurplus: false, speculativeInvestment: false },
 						giftReceivedThisRound: initialGiftReceivedThisRound(),
+						speculativeInvestmentResolved: initialSpeculativeInvestmentResolved(),
 						history: historyState,
 					};
 				}
@@ -330,6 +383,7 @@ export const reducer = (state: State, action: Action): State => {
 					pendingTurn: null,
 					lastRandomRoll: null,
 					actionsUsedThisTurn: 0,
+					randomTilePurchasedThisTurn: false,
 					endedThisRound,
 					purchasedThisTurn: purchasedClearedForCurrent,
 					eventCardsRemaining: newEventCards,
@@ -353,22 +407,32 @@ export const reducer = (state: State, action: Action): State => {
 				pendingTurn: null,
 				lastRandomRoll: null,
 				actionsUsedThisTurn: 0,
+				randomTilePurchasedThisTurn: false,
 				endedThisRound,
 				purchasedThisTurn: purchasedClearedForCurrent,
 				history: historyState,
 			};
 		})
 		.with({ type: "BUY_ITEM" }, (innerAction) => {
+			if (state.activeEventEffects?.marketHoliday) return state;
 			const { item, price } = innerAction.payload;
+			if (state.activeEventEffects?.supplyChainShortage && item.type_ === "road") return state;
 			const user = state.game.users[state.game.turn];
 			const giftPending = state.activeEventEffects?.gift && !state.giftReceivedThisRound?.[user.color];
 			const isFreeActionTile = item.type_ === "action" && giftPending;
-			const effectivePrice = isFreeActionTile ? 0 : state.activeEventEffects?.blackFriday ? Math.max(0, price - 1) : price;
-			const isRandomTile = item.type_ === "road" && item.road === "plus" && price === 5;
-			const purchasedItem: Tilable = isRandomTile
-				? state.lastRandomRoll ?? road(ROAD_TYPES[Math.floor(Math.random() * ROAD_TYPES.length)], ROAD_ROTATIONS[Math.floor(Math.random() * ROAD_ROTATIONS.length)])
-				: item;
+			const lbPending = state.activeEventEffects?.logisticBreakthrough && state.logisticBreakthroughPicks < 2;
+			const isFreeRoadTile = item.type_ === "road" && lbPending;
+			const materialSurplus = state.activeEventEffects?.materialSurplus ?? false;
+			const basePrice =
+				materialSurplus && item.type_ === "road" ? Math.max(1, price - 2) : price;
+			const inflation = state.activeEventEffects?.rapidInflation ? 2 : 0;
+			const pricedWithDiscounts = state.activeEventEffects?.blackFriday ? Math.max(0, basePrice - 1) : basePrice + inflation;
+			const effectivePrice = isFreeActionTile || isFreeRoadTile ? 0 : pricedWithDiscounts;
+			const purchasedItem: Tilable = item;
 			if (state.actionsUsedThisTurn >= 2) {
+				return state;
+			}
+			if (state.activeEventEffects?.speculativeInvestment && !state.speculativeInvestmentResolved[state.game.turn]) {
 				return state;
 			}
 			if (user.resources.dollar < effectivePrice) {
@@ -389,7 +453,10 @@ export const reducer = (state: State, action: Action): State => {
 				[user.color]: updatedUserPurchased,
 			};
 			const giftReceivedThisRound = isFreeActionTile ? { ...state.giftReceivedThisRound, [user.color]: true } : state.giftReceivedThisRound;
-			const historyForRandom = isRandomTile ? [...state.history.slice(-19), { ...state, history: [], lastRandomRoll: purchasedItem }] : historyState;
+			const newLbPicks = isFreeRoadTile ? state.logisticBreakthroughPicks + 1 : state.logisticBreakthroughPicks;
+			const lbJustCompleted = isFreeRoadTile && newLbPicks === 2;
+			const lbFirstPick = isFreeRoadTile && newLbPicks === 1;
+			const actionsIncrement = lbFirstPick ? 0 : 1;
 
 			return {
 				...state,
@@ -410,11 +477,11 @@ export const reducer = (state: State, action: Action): State => {
 						},
 					},
 				},
-				lastRandomRoll: isRandomTile ? null : state.lastRandomRoll,
-				actionsUsedThisTurn: state.actionsUsedThisTurn + 1,
+				actionsUsedThisTurn: state.actionsUsedThisTurn + actionsIncrement,
+				logisticBreakthroughPicks: newLbPicks,
 				purchasedThisTurn,
 				giftReceivedThisRound,
-				history: historyForRandom,
+				history: historyState,
 			};
 		})
 		.with({ type: "TURN_TILE" }, (innerAction) => {
@@ -482,11 +549,20 @@ export const reducer = (state: State, action: Action): State => {
 			};
 		})
 		.with(P.union({ type: "BLOCK_TILE" }, { type: "UNBLOCK_TILE" }), (innerAction) => {
+			if (state.activeEventEffects?.speculativeInvestment && !state.speculativeInvestmentResolved[state.game.turn]) {
+				return state;
+			}
 			const { x, y } = innerAction.payload;
 			const user = state.game.users[state.game.turn];
 			const tile = state.game.tiles[`${y}-${x}`];
 			const actionsUsed = state.actionsUsedThisTurn;
 			if (!tile.owned || tile.content.type_ !== "road") {
+				return state;
+			}
+			if (innerAction.type === "BLOCK_TILE" && state.activeEventEffects?.safePassage) {
+				return state;
+			}
+			if (innerAction.type === "UNBLOCK_TILE" && state.activeEventEffects?.brokenLogistics) {
 				return state;
 			}
 			if (tile.content.blocked && innerAction.type === "BLOCK_TILE") {
@@ -551,6 +627,9 @@ export const reducer = (state: State, action: Action): State => {
 			};
 		})
 		.with({ type: "TOLL_TILE" }, (innerAction) => {
+			if (state.activeEventEffects?.speculativeInvestment && !state.speculativeInvestmentResolved[state.game.turn]) {
+				return state;
+			}
 			const { x, y } = innerAction.payload;
 			const user = state.game.users[state.game.turn];
 			const tile = state.game.tiles[`${y}-${x}`];
@@ -605,6 +684,9 @@ export const reducer = (state: State, action: Action): State => {
 			};
 		})
 		.with({ type: "PLACE_TILE" }, (innerAction) => {
+			if (state.activeEventEffects?.speculativeInvestment && !state.speculativeInvestmentResolved[state.game.turn]) {
+				return state;
+			}
 			const { x, y, tile } = innerAction.payload;
 			const user = state.game.users[state.game.turn];
 			const currentTile = state.game.tiles[`${y}-${x}`];
@@ -732,11 +814,17 @@ export const reducer = (state: State, action: Action): State => {
 			const nextRound = (baseGame.round ?? 1) + 1;
 			const roundStarter = TILE_OWNERS[(nextRound - 1) % TILE_OWNERS.length];
 			const newUsers: typeof baseGame.users = { ...baseGame.users };
+			const isExtendedTimeline = state.eventCardContent === "extended_timeline";
+			const effectiveCard = isExtendedTimeline ? state.lastDrawnEventCard : state.eventCardContent;
+			const laborRevoltActive = effectiveCard === "labor_revolt";
+			const structuralCollapseActive = effectiveCard === "structural_collapse";
 			for (const owner of TILE_OWNERS) {
 				const user = baseGame.users[owner];
 				const production = calculateUserProduction(baseGame, owner);
 				const addedResources = RESOURCE_TYPES.reduce((acc, resource) => {
-					acc[resource] = user.resources[resource] + production[resource];
+					const base = production[resource];
+					const effective = structuralCollapseActive ? 0 : laborRevoltActive ? Math.floor(base * 0.6) : base;
+					acc[resource] = user.resources[resource] + effective;
 					return acc;
 				}, zero());
 				newUsers[owner] = {
@@ -748,11 +836,24 @@ export const reducer = (state: State, action: Action): State => {
 					},
 				};
 			}
-			const activeEventEffects = {
-				noRoad: state.eventCardContent === "no_road",
-				blackFriday: state.eventCardContent === "black_friday",
-				gift: state.eventCardContent === "gift",
-			};
+			const activeEventEffects = isExtendedTimeline
+				? state.activeEventEffects
+				: {
+					noRoad: state.eventCardContent === "no_road",
+					blackFriday: state.eventCardContent === "black_friday",
+					gift: state.eventCardContent === "gift",
+					luckyStreak: state.eventCardContent === "lucky_streak",
+					laborRevolt: state.eventCardContent === "labor_revolt",
+					rapidInflation: state.eventCardContent === "rapid_inflation",
+					safePassage: state.eventCardContent === "safe_passage",
+					brokenLogistics: state.eventCardContent === "broken_logistics",
+					bureaucraticDelay: state.eventCardContent === "bureaucratic_delay",
+					logisticBreakthrough: state.eventCardContent === "logistic_breakthrough",
+					marketHoliday: state.eventCardContent === "market_holiday",
+					supplyChainShortage: state.eventCardContent === "supply_chain_shortage",
+					materialSurplus: state.eventCardContent === "material_surplus",
+					speculativeInvestment: state.eventCardContent === "speculative_investment",
+				};
 
 			return {
 				...state,
@@ -767,7 +868,8 @@ export const reducer = (state: State, action: Action): State => {
 				pendingRotation: null,
 				pendingTurn: null,
 				lastRandomRoll: null,
-				actionsUsedThisTurn: 0,
+				actionsUsedThisTurn: activeEventEffects.bureaucraticDelay ? 2 : 0,
+				randomTilePurchasedThisTurn: false,
 				endedThisRound: initialEndedThisRound(),
 				purchasedThisTurn: initialPurchasedThisTurn(),
 				showEventCard: false,
@@ -775,7 +877,10 @@ export const reducer = (state: State, action: Action): State => {
 				pendingRoundEnd: false,
 				activeEventEffects,
 				giftReceivedThisRound: initialGiftReceivedThisRound(),
-				lastDrawnEventCard: state.eventCardContent,
+				lastDrawnEventCard: isExtendedTimeline ? state.lastDrawnEventCard : state.eventCardContent,
+				lastDrawnWasExtendedTimeline: isExtendedTimeline,
+				speculativeInvestmentResolved: activeEventEffects.speculativeInvestment ? initialSpeculativeInvestmentResolved() : state.speculativeInvestmentResolved,
+				logisticBreakthroughPicks: 0,
 				history: historyState,
 			};
 		})
@@ -788,6 +893,195 @@ export const reducer = (state: State, action: Action): State => {
 				showEventCard: true,
 				eventCardContent: state.lastDrawnEventCard as Exclude<State["eventCardContent"], "blank">,
 				pendingRoundEnd: false,
+				speculativeInvestmentResolved: state.activeEventEffects.speculativeInvestment ? initialSpeculativeInvestmentResolved() : state.speculativeInvestmentResolved,
+			};
+		})
+		.with({ type: "START_DICE_ROLL" }, (innerAction) => {
+			if (state.activeEventEffects?.marketHoliday) return state;
+			if (state.activeEventEffects?.supplyChainShortage) return state;
+			if (state.activeEventEffects?.speculativeInvestment && !state.speculativeInvestmentResolved[state.game.turn]) return state;
+			const { price } = innerAction.payload;
+			const user = state.game.users[state.game.turn];
+			const inflation = state.activeEventEffects?.rapidInflation ? 2 : 0;
+			const effectivePrice = state.activeEventEffects?.blackFriday ? Math.max(0, price - 1) : price + inflation;
+			if (state.actionsUsedThisTurn >= 2) return state;
+			if (user.resources.dollar < effectivePrice) return state;
+			return {
+				...state,
+				game: {
+					...state.game,
+					users: {
+						...state.game.users,
+						[user.color]: {
+							...user,
+							resources: {
+								...user.resources,
+								dollar: user.resources.dollar - effectivePrice,
+							},
+						},
+					},
+				},
+				actionsUsedThisTurn: state.actionsUsedThisTurn + 1,
+				randomTilePurchasedThisTurn: true,
+				diceRoll: { active: true },
+				history: [],
+			};
+		})
+		.with({ type: "FINISH_DICE_ROLL" }, (innerAction) => {
+			const { tile } = innerAction.payload;
+			if (!state.diceRoll?.active) return state;
+			if (!tile) {
+				return { ...state, diceRoll: null };
+			}
+			const user = state.game.users[state.game.turn];
+			const key = toKey(tile);
+			const userPurchased = state.purchasedThisTurn[user.color] ?? {};
+			const updatedUserPurchased: Partial<Record<TileKey, number>> = {
+				...userPurchased,
+				[key]: (userPurchased[key] ?? 0) + 1,
+			};
+			return {
+				...state,
+				game: {
+					...state.game,
+					users: {
+						...state.game.users,
+						[user.color]: {
+							...user,
+							inventory: {
+								...user.inventory,
+								[key]: (user.inventory[key] ?? 0) + 1,
+							},
+						},
+					},
+				},
+				purchasedThisTurn: {
+					...state.purchasedThisTurn,
+					[user.color]: updatedUserPurchased,
+				},
+				diceRoll: null,
+			};
+		})
+		.with({ type: "SPECULATIVE_ROLL" }, (innerAction) => {
+			const { roll } = innerAction.payload;
+			if (!state.activeEventEffects?.speculativeInvestment) {
+				return state;
+			}
+			const current = state.game.turn;
+			if (state.speculativeInvestmentResolved[current]) {
+				return state;
+			}
+
+			let gameState = state.game;
+
+			const tiles = gameState.tiles;
+			const entries = Object.entries(tiles).filter(
+				([, t]) =>
+					t.owned &&
+					t.owner === current &&
+					t.content.type_ === "production" &&
+					t.content.production === "dollar",
+			) as [string, (typeof tiles)[string]][];
+
+			const downgradeOne = () => {
+				if (entries.length === 0) return;
+				const sorted = [...entries].sort(
+					([, a], [, b]) => (b.content.level as number) - (a.content.level as number),
+				);
+				const [key, tile] = sorted[0];
+				const level = tile.content.level;
+				if (level > 1) {
+					gameState = {
+						...gameState,
+						tiles: {
+							...gameState.tiles,
+							[key]: {
+								...tile,
+								content: {
+									...tile.content,
+									level: (level - 1) as typeof tile.content.level,
+								},
+							},
+						},
+					};
+				} else {
+					gameState = {
+						...gameState,
+						tiles: {
+							...gameState.tiles,
+							[key]: {
+								...tile,
+								content: { type_: "empty" } as any,
+							},
+						},
+					};
+				}
+			};
+
+			const giveFreeProduction = () => {
+				const user = gameState.users[current];
+				const freeTile: Tilable = {
+					type_: "production",
+					production: "dollar",
+					level: 1,
+				} as const;
+				const key = toKey(freeTile);
+				gameState = {
+					...gameState,
+					users: {
+						...gameState.users,
+						[current]: {
+							...user,
+							inventory: {
+								...user.inventory,
+								[key]: (user.inventory[key] ?? 0) + 1,
+							},
+						},
+					},
+				};
+			};
+
+			const upgradeOrFree = () => {
+				const upgradable = entries.filter(([, t]) => t.content.level < 3);
+				if (upgradable.length === 0) {
+					giveFreeProduction();
+					return;
+				}
+				const sorted = [...upgradable].sort(
+					([, a], [, b]) => (a.content.level as number) - (b.content.level as number),
+				);
+				const [key, tile] = sorted[0];
+				const level = tile.content.level;
+				gameState = {
+					...gameState,
+					tiles: {
+						...gameState.tiles,
+						[key]: {
+							...tile,
+							content: {
+								...tile.content,
+								level: (level + 1) as typeof tile.content.level,
+							},
+						},
+					},
+				};
+			};
+
+			if (roll === 1 || roll === 2) {
+				downgradeOne();
+			} else if (roll === 5 || roll === 6) {
+				upgradeOrFree();
+			}
+
+			const updatedGame = updateUserProduction(gameState, current);
+
+			return {
+				...state,
+				game: updatedGame,
+				speculativeInvestmentResolved: {
+					...state.speculativeInvestmentResolved,
+					[current]: true,
+				},
 			};
 		})
 		.exhaustive() as State;

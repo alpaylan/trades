@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { type ResourceCollection, type Tilable, road } from "../logic/Game";
 import { useGlobalContext } from "../logic/State";
+import DiceRoll from "./DiceRoll";
 
 const GOLD_BAR_SRC = "/assets/gold-bar.svg";
 
@@ -46,15 +48,30 @@ function StoreItem({
 	const actionsUsed = state.actionsUsedThisTurn ?? 0;
 	const canAct = actionsUsed < 2;
 	const blackFriday = state.activeEventEffects?.blackFriday ?? false;
+	const rapidInflation = state.activeEventEffects?.rapidInflation ?? false;
+	const materialSurplus = state.activeEventEffects?.materialSurplus ?? false;
 	const giftPending =
 		state.activeEventEffects?.gift &&
 		!state.giftReceivedThisRound?.[current];
+	const lbPending =
+		state.activeEventEffects?.logisticBreakthrough &&
+		state.logisticBreakthroughPicks < 2;
+	const speculativePending =
+		state.activeEventEffects?.speculativeInvestment &&
+		!state.speculativeInvestmentResolved[current];
 	const isFreeActionTile = item.type_ === "action" && giftPending;
+	const isFreeRoadTile = item.type_ === "road" && lbPending;
+	const basePrice =
+		materialSurplus && item.type_ === "road" ? Math.max(1, price - 2) : price;
+	const pricedWithDiscounts =
+		blackFriday ? Math.max(0, basePrice - 1) : rapidInflation ? basePrice + 2 : basePrice;
 	const displayPrice =
-		isFreeActionTile ? 0 : blackFriday ? Math.max(0, price - 1) : price;
+		isFreeActionTile || isFreeRoadTile ? 0 : pricedWithDiscounts;
+	const priceTag = blackFriday ? " — Black Friday!" : rapidInflation ? " — Rapid Inflation!" : "";
+	const freeTag = isFreeActionTile ? " — Free gift!" : isFreeRoadTile ? " — Logistic Breakthrough!" : "";
 	const tooltip = showGoldBars
-		? `${text} (cost: ${displayPrice} gold${blackFriday ? " — Black Friday!" : ""}${isFreeActionTile ? " — Free gift!" : ""})`
-		: `${text} (cost: ${displayPrice}${blackFriday ? " — Black Friday!" : ""}${isFreeActionTile ? " — Free gift!" : ""})`;
+		? `${text} (cost: ${displayPrice} gold${priceTag}${freeTag})`
+		: `${text} (cost: ${displayPrice}${priceTag}${freeTag})`;
 
 	const disabled = resources.dollar < displayPrice || !canAct;
 
@@ -67,6 +84,7 @@ function StoreItem({
 				if (disabled) return;
 				dispatch({ type: "BUY_ITEM", payload: { item, price } });
 			}}
+			style={disabled ? { opacity: 0.4, pointerEvents: "none" } : undefined}
 		>
 			{showGoldBars ? (
 				<GoldBars count={showGoldBars.iconCount} size={16} />
@@ -78,33 +96,149 @@ function StoreItem({
 	);
 }
 
+function RandomTileConfirmDialog({
+	onConfirm,
+	onCancel,
+}: {
+	onConfirm: () => void;
+	onCancel: () => void;
+}) {
+	return (
+		<div
+			style={{
+				position: "fixed",
+				inset: 0,
+				zIndex: 9999,
+				display: "flex",
+				alignItems: "center",
+				justifyContent: "center",
+				backgroundColor: "rgba(0,0,0,0.45)",
+			}}
+			onClick={onCancel}
+		>
+			<div
+				style={{
+					background: "#fff",
+					borderRadius: 10,
+					padding: "24px 28px",
+					boxShadow: "0 4px 24px rgba(0,0,0,0.25)",
+					maxWidth: 340,
+					textAlign: "center",
+				}}
+				onClick={(e) => e.stopPropagation()}
+			>
+				<p style={{ margin: "0 0 6px", fontWeight: 700, fontSize: 15 }}>
+					Random Tile
+				</p>
+				<p style={{ margin: "0 0 18px", fontSize: 13, color: "#555" }}>
+					This action cannot be undone. Do you want to continue?
+				</p>
+				<div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+					<button
+						type="button"
+						onClick={onCancel}
+						style={{
+							padding: "6px 18px",
+							borderRadius: 6,
+							border: "1px solid #ccc",
+							background: "#f5f5f5",
+							cursor: "pointer",
+							fontSize: 13,
+						}}
+					>
+						Cancel
+					</button>
+					<button
+						type="button"
+						onClick={onConfirm}
+						style={{
+							padding: "6px 18px",
+							borderRadius: 6,
+							border: "none",
+							background: "#e65100",
+							color: "#fff",
+							cursor: "pointer",
+							fontWeight: 600,
+							fontSize: 13,
+						}}
+					>
+						Confirm
+					</button>
+				</div>
+			</div>
+		</div>
+	);
+}
+
 export default function Store({
 	resources,
 }: {
 	resources: ResourceCollection;
 }) {
-	const { state } = useGlobalContext();
+	const { state, dispatch } = useGlobalContext();
 	const current = state.game.turn;
 	const giftPending =
 		state.activeEventEffects?.gift &&
 		!state.giftReceivedThisRound?.[current];
+	const lbPending =
+		state.activeEventEffects?.logisticBreakthrough &&
+		state.logisticBreakthroughPicks < 2;
+	const marketHoliday = state.activeEventEffects?.marketHoliday ?? false;
+	const supplyChainShortage = state.activeEventEffects?.supplyChainShortage ?? false;
+	const speculativePending =
+		state.activeEventEffects?.speculativeInvestment &&
+		!state.speculativeInvestmentResolved[state.game.turn];
+	const [showRandomConfirm, setShowRandomConfirm] = useState(false);
+
+	const randomPrice = 5;
+	const blackFriday = state.activeEventEffects?.blackFriday ?? false;
+	const rapidInflation = state.activeEventEffects?.rapidInflation ?? false;
+	const randomDisplayPrice = blackFriday ? Math.max(0, randomPrice - 1) : rapidInflation ? randomPrice + 2 : randomPrice;
+	const actionsUsed = state.actionsUsedThisTurn ?? 0;
+	const randomDisabled = resources.dollar < randomDisplayPrice || actionsUsed >= 2 || !!lbPending || !!speculativePending;
 
 	return (
-		<div id="store" >
-			<div id="action-tiles" className="substore">
+		<div
+			id="store"
+			style={
+				marketHoliday || speculativePending
+					? { opacity: 0.4, pointerEvents: "none" }
+					: undefined
+			}
+		>
+			{showRandomConfirm && (
+				<RandomTileConfirmDialog
+					onConfirm={() => {
+						setShowRandomConfirm(false);
+						dispatch({
+							type: "START_DICE_ROLL",
+							payload: { price: randomPrice },
+						});
+					}}
+					onCancel={() => setShowRandomConfirm(false)}
+				/>
+			)}
+			{state.diceRoll?.active && <DiceRoll />}
+			<div id="action-tiles" className="substore"
+				style={
+					lbPending
+						? { opacity: 0.5, pointerEvents: "none" as const }
+						: undefined
+				}
+			>
 				{giftPending && (
 					<div
 						style={{
 							width: "100%",
-							padding: "6px 8px",
-							marginBottom: 6,
+							padding: "4px 8px",
 							backgroundColor: "#fff3e0",
 							border: "1px solid #ffb74d",
-							borderRadius: 6,
-							fontSize: 12,
+							borderRadius: 4,
+							fontSize: 11,
 							color: "#e65100",
 							fontWeight: 600,
 							textAlign: "center",
+							whiteSpace: "nowrap",
 						}}
 					>
 						Don't forget to claim your gift
@@ -143,14 +277,34 @@ export default function Store({
 				id="road-tiles"
 				className="substore"
 				style={
-					giftPending
+					giftPending || supplyChainShortage
 						? {
-								opacity: 0.5,
+								opacity: 0.4,
 								pointerEvents: "none" as const,
 							}
+						: lbPending
+						? { flexWrap: "wrap" as const }
 						: undefined
 				}
 			>
+				{lbPending && (
+					<div
+						style={{
+							width: "100%",
+							padding: "4px 8px",
+							backgroundColor: "#e3f2fd",
+							border: "1px solid #64b5f6",
+							borderRadius: 4,
+							fontSize: 11,
+							color: "#1565c0",
+							fontWeight: 600,
+							textAlign: "center",
+							whiteSpace: "nowrap",
+						}}
+					>
+						Pick {2 - state.logisticBreakthroughPicks} free road tile{2 - state.logisticBreakthroughPicks > 1 ? "s" : ""}!
+					</div>
+				)}
 				<StoreItem
 					resources={resources}
 					price={2}
@@ -179,21 +333,28 @@ export default function Store({
 					icon="/assets/road-plus.svg"
 					text="Crossroad ($8)"
 				/>
-				<StoreItem
-					resources={resources}
-					price={5}
-					item={road("plus", 0)}
-					icon="/assets/question.svg"
-					// item={(n: number) => road(ROAD_TYPES[n], 0)}
-					// icon={(n: number) => `/assets/road-${ROAD_TYPES[n]}.svg`}
-					text="Random ($5)"
-				/>
+				<button
+					type="button"
+					disabled={randomDisabled}
+					title={`Random road tile (cost: ${randomDisplayPrice}${blackFriday ? " — Black Friday!" : ""}${rapidInflation ? " — Rapid Inflation!" : ""})`}
+					onClick={() => {
+						if (!randomDisabled) setShowRandomConfirm(true);
+					}}
+					style={
+						randomDisabled
+							? { opacity: 0.4, pointerEvents: "none" as const }
+							: undefined
+					}
+				>
+					<img src="/assets/question.svg" alt="random tile icon" title={`Random road tile (cost: ${randomDisplayPrice})`} />
+					<span>{randomDisplayPrice}</span>
+				</button>
 			</div>
 			<div
 				id="production-tiles"
 				className="substore"
 				style={
-					giftPending
+					giftPending || lbPending
 						? {
 								opacity: 0.5,
 								pointerEvents: "none" as const,
