@@ -70,7 +70,7 @@ export default function DiceRoll() {
 	const [phase, setPhase] = useState<Phase>({ type: "rolling", attempt: 1 });
 	const [displayValue, setDisplayValue] = useState(1);
 	const animFrameRef = useRef<number>(0);
-	const rollTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+	const rollTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
 	const finishWithTile = useCallback(
 		(value: number | null) => {

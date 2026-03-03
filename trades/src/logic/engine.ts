@@ -12,6 +12,8 @@ import {
 	type RoadRotation,
 	type TileKey,
 	type TileOwner,
+	type OwnedTile,
+	type ProductionTile,
 	type Tilable,
 	toKey,
 	zero,
@@ -454,7 +456,6 @@ export const reducer = (state: State, action: Action): State => {
 			};
 			const giftReceivedThisRound = isFreeActionTile ? { ...state.giftReceivedThisRound, [user.color]: true } : state.giftReceivedThisRound;
 			const newLbPicks = isFreeRoadTile ? state.logisticBreakthroughPicks + 1 : state.logisticBreakthroughPicks;
-			const lbJustCompleted = isFreeRoadTile && newLbPicks === 2;
 			const lbFirstPick = isFreeRoadTile && newLbPicks === 1;
 			const actionsIncrement = lbFirstPick ? 0 : 1;
 
@@ -976,12 +977,12 @@ export const reducer = (state: State, action: Action): State => {
 
 			const tiles = gameState.tiles;
 			const entries = Object.entries(tiles).filter(
-				([, t]) =>
-					t.owned &&
-					t.owner === current &&
-					t.content.type_ === "production" &&
-					t.content.production === "dollar",
-			) as [string, (typeof tiles)[string]][];
+				(entry): entry is [string, OwnedTile & { content: ProductionTile }] =>
+					entry[1].owned &&
+					entry[1].owner === current &&
+					entry[1].content.type_ === "production" &&
+					entry[1].content.production === "dollar",
+			);
 
 			const downgradeOne = () => {
 				if (entries.length === 0) return;
