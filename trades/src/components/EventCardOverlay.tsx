@@ -31,6 +31,8 @@ const CARD_IMAGES: Record<string, { src: string; alt: string }> = {
 	material_surplus: { src: "/assets/event-card-material-surplus.png", alt: "Material Surplus" },
 	supply_chain_shortage: { src: "/assets/event-card-supply-chain-shortage.png", alt: "Supply Chain Shortage" },
 	speculative_investment: { src: "/assets/event-card-speculative-investment.png", alt: "Speculative Investment" },
+	black_market_scams: { src: "/assets/event-card-black-market-scams.png", alt: "Black Market Scams" },
+	merchants_lottery: { src: "/assets/event-card-merchants-lottery.png", alt: "Merchant's Lottery" },
 };
 
 export default function EventCardOverlay() {
@@ -84,7 +86,11 @@ export default function EventCardOverlay() {
 														? "Supply Chain Shortage event card"
 														: state.eventCardContent === "material_surplus"
 															? "Material Surplus event card"
-															: "Event card"
+															: state.eventCardContent === "black_market_scams"
+																? "Black Market Scams event card"
+																: state.eventCardContent === "merchants_lottery"
+																	? "Merchant's Lottery event card"
+																	: "Event card"
 			}
 		>
 			<div

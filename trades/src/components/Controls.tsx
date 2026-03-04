@@ -127,10 +127,19 @@ function SpeculativeDiceOverlay({ onDone }: { onDone: (roll: number) => void }) 
 		</div>
 	);
 }
+import type { TileKey } from "../logic/Game";
 import Inventory from "./Inventory";
 import RotationSelector from "./RotationSelector";
 import Store from "./Store";
 import Turn from "./Turn";
+
+function actionTileLabel(key: TileKey): string {
+	if (typeof key === "string" && key.startsWith("action:")) {
+		const a = key.slice(7);
+		return a.charAt(0).toUpperCase() + a.slice(1);
+	}
+	return String(key);
+}
 
 export default function Controls() {
 	const { state, dispatch } = useGlobalContext();
@@ -138,6 +147,14 @@ export default function Controls() {
 	const [showSpeculativeDice, setShowSpeculativeDice] = useState(false);
 
 	const user = state.game.users[state.game.turn];
+	const turn = state.game.turn;
+	const blackMarketRemoved = state.blackMarketScamsRemoved?.[turn] ?? [];
+	const showBlackMarketPopup =
+		blackMarketRemoved.length > 0 && !state.blackMarketScamsPopupShown?.[turn];
+	const merchantsLotteryActive = state.activeEventEffects?.merchantsLottery ?? false;
+	const merchantsLotteryAmount = state.merchantsLotteryResult?.[turn] ?? 0;
+	const showMerchantsLotteryPopup =
+		merchantsLotteryActive && !state.merchantsLotteryPopupShown?.[turn];
 	const actionsUsed = state.actionsUsedThisTurn ?? 0;
 	const actionsLeft = Math.max(0, 2 - actionsUsed);
 	const giftPending =
@@ -219,6 +236,127 @@ export default function Controls() {
 						setShowSpeculativeDice(false);
 					}}
 				/>
+			)}
+			{showBlackMarketPopup && (
+				<div
+					style={{
+						position: "fixed",
+						inset: 0,
+						zIndex: 10000,
+						display: "flex",
+						alignItems: "center",
+						justifyContent: "center",
+						backgroundColor: "rgba(0,0,0,0.55)",
+					}}
+					role="dialog"
+					aria-modal="true"
+					aria-label="Black Market Scams – action tiles removed"
+				>
+					<div
+						style={{
+							background: "#fff",
+							borderRadius: 14,
+							padding: "24px 32px",
+							boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+							textAlign: "center",
+							minWidth: 280,
+							maxWidth: 360,
+						}}
+					>
+						<p style={{ margin: "0 0 8px", fontWeight: 700, fontSize: 18, color: "#1a1a1a" }}>
+							Black Market Scams
+						</p>
+						<p style={{ margin: "0 0 12px", fontSize: 14, color: "#555" }}>
+							Your investments were a scam! The action tiles below were removed from your inventory:
+						</p>
+						<ul
+							style={{
+								margin: "0 0 16px",
+								paddingLeft: 20,
+								textAlign: "left",
+								fontSize: 14,
+								color: "#333",
+							}}
+						>
+							{blackMarketRemoved.map(({ key, count }, i) => (
+								<li key={i}>
+									{actionTileLabel(key)} × {count}
+								</li>
+							))}
+						</ul>
+						<button
+							type="button"
+							onClick={() => dispatch({ type: "DISMISS_BLACK_MARKET_POPUP" })}
+							style={{
+								padding: "8px 24px",
+								borderRadius: 8,
+								border: "none",
+								background: "#2e7d32",
+								color: "#fff",
+								cursor: "pointer",
+								fontWeight: 600,
+								fontSize: 14,
+							}}
+						>
+							OK
+						</button>
+					</div>
+				</div>
+			)}
+			{showMerchantsLotteryPopup && (
+				<div
+					style={{
+						position: "fixed",
+						inset: 0,
+						zIndex: 10000,
+						display: "flex",
+						alignItems: "center",
+						justifyContent: "center",
+						backgroundColor: "rgba(0,0,0,0.55)",
+					}}
+					role="dialog"
+					aria-modal="true"
+					aria-label="Merchant's Lottery result"
+				>
+					<div
+						style={{
+							background: "#fff",
+							borderRadius: 14,
+							padding: "24px 32px",
+							boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+							textAlign: "center",
+							minWidth: 280,
+							maxWidth: 360,
+						}}
+					>
+						<p style={{ margin: "0 0 8px", fontWeight: 700, fontSize: 18, color: "#1a1a1a" }}>
+							Merchant's Lottery
+						</p>
+						<p style={{ margin: "0 0 16px", fontSize: 14, color: "#333" }}>
+							{merchantsLotteryAmount === 0
+								? "Fortune didn't smile this time — only the player(s) with the lowest gold production won (5 Gold for a single winner, 2 Gold each if tied). Better luck next round!"
+								: merchantsLotteryAmount === 5
+									? "Fortune smiles on the struggling! You had the lowest gold production and won 5 Gold. Enjoy your bonus."
+									: "Fortune smiles on the struggling! You were among the lowest producers and won 2 Gold. Enjoy your bonus."}
+						</p>
+						<button
+							type="button"
+							onClick={() => dispatch({ type: "DISMISS_MERCHANTS_LOTTERY_POPUP" })}
+							style={{
+								padding: "8px 24px",
+								borderRadius: 8,
+								border: "none",
+								background: "#2e7d32",
+								color: "#fff",
+								cursor: "pointer",
+								fontWeight: 600,
+								fontSize: 14,
+							}}
+						>
+							OK
+						</button>
+					</div>
+				</div>
 			)}
 			<Inventory inventory={user.inventory} />
 			<RotationSelector />

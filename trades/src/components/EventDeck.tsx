@@ -7,7 +7,7 @@ const SQUARE_GRID = [
 ];
 
 const EVENT_CARD_IMAGES: Record<
-	"end_of_phase_1" | "no_road" | "black_friday" | "gift" | "lucky_streak" | "labor_revolt" | "rapid_inflation" | "structural_collapse" | "safe_passage" | "broken_logistics" | "business_as_usual" | "extended_timeline" | "bureaucratic_delay" | "logistic_breakthrough" | "market_holiday" | "supply_chain_shortage" | "material_surplus" | "speculative_investment",
+	"end_of_phase_1" | "no_road" | "black_friday" | "gift" | "lucky_streak" | "labor_revolt" | "rapid_inflation" | "structural_collapse" | "safe_passage" | "broken_logistics" | "business_as_usual" | "extended_timeline" | "bureaucratic_delay" | "logistic_breakthrough" | "market_holiday" | "supply_chain_shortage" | "material_surplus" | 	"speculative_investment" | "black_market_scams" | "merchants_lottery",
 	string
 > = {
 	end_of_phase_1: "/assets/event-card-end-of-phase-1.png",
@@ -28,6 +28,8 @@ const EVENT_CARD_IMAGES: Record<
 	material_surplus: "/assets/event-card-material-surplus.png",
 	supply_chain_shortage: "/assets/event-card-supply-chain-shortage.png",
 	speculative_investment: "/assets/event-card-speculative-investment.png",
+	black_market_scams: "/assets/event-card-black-market-scams.png",
+	merchants_lottery: "/assets/event-card-merchants-lottery.png",
 };
 
 export default function EventDeck() {
