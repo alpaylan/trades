@@ -7,7 +7,7 @@ const SQUARE_GRID = [
 ];
 
 const EVENT_CARD_IMAGES: Record<
-	"end_of_phase_1" | "no_road" | "black_friday" | "gift" | "lucky_streak" | "labor_revolt" | "rapid_inflation" | "structural_collapse" | "safe_passage" | "broken_logistics" | "business_as_usual" | "extended_timeline" | "bureaucratic_delay" | "logistic_breakthrough" | "market_holiday" | "supply_chain_shortage" | "material_surplus" | 	"speculative_investment" | "black_market_scams" | "merchants_lottery",
+	"end_of_phase_1" | "no_road" | "black_friday" | "gift" | "lucky_streak" | "labor_revolt" | "rapid_inflation" | "structural_collapse" | "safe_passage" | "broken_logistics" | "business_as_usual" | "extended_timeline" | "bureaucratic_delay" | "logistic_breakthrough" | "market_holiday" | "supply_chain_shortage" | "material_surplus" | "speculative_investment" | "black_market_scams" | "merchants_lottery",
 	string
 > = {
 	end_of_phase_1: "/assets/event-card-end-of-phase-1.png",
@@ -37,8 +37,15 @@ export default function EventDeck() {
 	const remaining = state.eventCardsRemaining;
 	const isLow = remaining <= 5 && remaining > 0;
 	const lastDrawn = state.lastDrawnEventCard;
-	const showLastCard =
-		lastDrawn && lastDrawn !== "blank" && lastDrawn in EVENT_CARD_IMAGES;
+	const imageSrc =
+		lastDrawn === "robin_hoods_toll"
+			? "/assets/event-card-robin-hoods-toll.png"
+			: lastDrawn === "reversed_currents"
+				? "/assets/event-card-reversed-currents.png"
+				: lastDrawn && lastDrawn in EVENT_CARD_IMAGES
+					? EVENT_CARD_IMAGES[lastDrawn as keyof typeof EVENT_CARD_IMAGES]
+					: undefined;
+	const showLastCard = !!(lastDrawn && lastDrawn !== "blank" && imageSrc);
 
 	return (
 		<div
@@ -73,7 +80,7 @@ export default function EventDeck() {
 					}}
 				>
 					<img
-						src={EVENT_CARD_IMAGES[lastDrawn as keyof typeof EVENT_CARD_IMAGES]}
+						src={imageSrc}
 						alt={`Event card: ${lastDrawn.replace(/_/g, " ")}`}
 						style={{
 							width: "100%",

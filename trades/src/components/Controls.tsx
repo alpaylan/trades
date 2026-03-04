@@ -155,6 +155,10 @@ export default function Controls() {
 	const merchantsLotteryAmount = state.merchantsLotteryResult?.[turn] ?? 0;
 	const showMerchantsLotteryPopup =
 		merchantsLotteryActive && !state.merchantsLotteryPopupShown?.[turn];
+	const robinHoodsTollActive = state.activeEventEffects?.robinHoodsToll ?? false;
+	const robinHoodDelta = state.robinHoodTollDelta?.[turn] ?? 0;
+	const showRobinHoodsTollPopup =
+		robinHoodsTollActive && !state.robinHoodTollPopupShown?.[turn] && robinHoodDelta !== 0;
 	const actionsUsed = state.actionsUsedThisTurn ?? 0;
 	const actionsLeft = Math.max(0, 2 - actionsUsed);
 	const giftPending =
@@ -342,6 +346,59 @@ export default function Controls() {
 						<button
 							type="button"
 							onClick={() => dispatch({ type: "DISMISS_MERCHANTS_LOTTERY_POPUP" })}
+							style={{
+								padding: "8px 24px",
+								borderRadius: 8,
+								border: "none",
+								background: "#2e7d32",
+								color: "#fff",
+								cursor: "pointer",
+								fontWeight: 600,
+								fontSize: 14,
+							}}
+						>
+							OK
+						</button>
+					</div>
+				</div>
+			)}
+			{showRobinHoodsTollPopup && (
+				<div
+					style={{
+						position: "fixed",
+						inset: 0,
+						zIndex: 10000,
+						display: "flex",
+						alignItems: "center",
+						justifyContent: "center",
+						backgroundColor: "rgba(0,0,0,0.55)",
+					}}
+					role="dialog"
+					aria-modal="true"
+					aria-label="Robin Hood's Toll result"
+				>
+					<div
+						style={{
+							background: "#fff",
+							borderRadius: 14,
+							padding: "24px 32px",
+							boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+							textAlign: "center",
+							minWidth: 280,
+							maxWidth: 360,
+						}}
+					>
+						<p style={{ margin: "0 0 8px", fontWeight: 700, fontSize: 18, color: "#1a1a1a" }}>
+							Robin Hood's Toll
+						</p>
+						<p style={{ margin: "0 0 16px", fontSize: 14, color: "#333" }}>
+							{robinHoodDelta > 0
+								? `Robin Hood came to your aid! You received ${robinHoodDelta} Gold from the wealthiest players.`
+								: `Robin Hood collected ${Math.abs(robinHoodDelta)} Gold from you to support poorer players on the board.`}
+						</p>
+						<button
+							type="button"
+							onClick={() => dispatch({ type: "DISMISS_ROBIN_HOODS_TOLL_POPUP" })}
 							style={{
 								padding: "8px 24px",
 								borderRadius: 8,

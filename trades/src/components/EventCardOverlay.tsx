@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useGlobalContext } from "../logic/State";
 
 const SQUARE_COLORS = ["#43a047", "#e53935", "#ffc107", "#1e88e5"];
@@ -33,10 +34,14 @@ const CARD_IMAGES: Record<string, { src: string; alt: string }> = {
 	speculative_investment: { src: "/assets/event-card-speculative-investment.png", alt: "Speculative Investment" },
 	black_market_scams: { src: "/assets/event-card-black-market-scams.png", alt: "Black Market Scams" },
 	merchants_lottery: { src: "/assets/event-card-merchants-lottery.png", alt: "Merchant's Lottery" },
+	robin_hoods_toll: { src: "/assets/event-card-robin-hoods-toll.png", alt: "Robin Hood's Toll" },
+	reversed_currents: { src: "/assets/event-card-reversed-currents.png", alt: "Reversed Currents" },
+	time_skip: { src: "/assets/event-card-time-skip.png", alt: "Time Skip" },
 };
 
 export default function EventCardOverlay() {
 	const { state, dispatch } = useGlobalContext();
+	const [showTimeSkipConfirm, setShowTimeSkipConfirm] = useState(false);
 
 	if (!state.showEventCard) return null;
 
@@ -44,11 +49,20 @@ export default function EventCardOverlay() {
 	const cardInfo = CARD_IMAGES[state.eventCardContent];
 	const showExtendedStack = isPreview && state.lastDrawnWasExtendedTimeline;
 	const extendedCardInfo = CARD_IMAGES["extended_timeline"];
+	const cardKey = `${state.eventCardContent}-${isPreview ? "preview" : "draw"}`;
+
+	const isTimeSkipRound = state.eventCardContent === "time_skip" && state.pendingRoundEnd;
 
 	return (
 		<div
 			className="event-card-overlay"
-			onClick={() => dispatch({ type: "DISMISS_EVENT_CARD" })}
+			onClick={() => {
+				if (isTimeSkipRound) {
+					setShowTimeSkipConfirm(true);
+					return;
+				}
+				dispatch({ type: "DISMISS_EVENT_CARD" });
+			}}
 			role="dialog"
 			aria-modal="true"
 			aria-label={
@@ -90,10 +104,17 @@ export default function EventCardOverlay() {
 																? "Black Market Scams event card"
 																: state.eventCardContent === "merchants_lottery"
 																	? "Merchant's Lottery event card"
-																	: "Event card"
+																	: state.eventCardContent === "robin_hoods_toll"
+																		? "Robin Hood's Toll event card"
+																		: state.eventCardContent === "reversed_currents"
+																			? "Reversed Currents event card"
+																			: state.eventCardContent === "time_skip"
+																				? "Time Skip event card"
+																				: "Event card"
 			}
 		>
 			<div
+				key={cardKey}
 				className={isPreview ? "event-card-preview" : "event-card-draw"}
 				onClick={(e) => e.stopPropagation()}
 			>
@@ -228,6 +249,70 @@ export default function EventCardOverlay() {
 					</div>
 				)}
 			</div>
+			{isTimeSkipRound && showTimeSkipConfirm && (
+				<div
+					style={{
+						position: "fixed",
+						inset: 0,
+						display: "flex",
+						alignItems: "center",
+						justifyContent: "center",
+						zIndex: 10001,
+						backgroundColor: "rgba(0,0,0,0.6)",
+					}}
+					onClick={(e) => e.stopPropagation()}
+				>
+					<div
+						style={{
+							background: "#fff",
+							borderRadius: 12,
+							padding: "20px 28px",
+							boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
+							minWidth: 260,
+							maxWidth: 340,
+							textAlign: "center",
+						}}
+					>
+						<p
+							style={{
+								margin: "0 0 10px",
+								fontSize: 16,
+								fontWeight: 700,
+							}}
+						>
+							Time Skip
+						</p>
+						<p
+							style={{
+								margin: "0 0 16px",
+								fontSize: 13,
+								color: "#555",
+							}}
+						>
+							A month passes in the blink of an eye. Move to the next round and draw a new event card.
+						</p>
+						<button
+							type="button"
+							onClick={() => {
+								setShowTimeSkipConfirm(false);
+								dispatch({ type: "DISMISS_EVENT_CARD" });
+							}}
+							style={{
+								padding: "8px 20px",
+								borderRadius: 8,
+								border: "none",
+								background: "#1976d2",
+								color: "#fff",
+								fontWeight: 600,
+								cursor: "pointer",
+								fontSize: 14,
+							}}
+						>
+							Move to Next Round
+						</button>
+					</div>
+				</div>
+			)}
 			<div
 				style={{
 					marginTop: 16,
