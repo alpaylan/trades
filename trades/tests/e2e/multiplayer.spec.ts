@@ -152,6 +152,35 @@ test.describe.serial("multiplayer remote smoke", () => {
 		await context.close();
 	});
 
+	test("placed road tiles are synchronized across clients", async ({ browser }) => {
+		const context = await newTestContext(browser);
+		const { host, guest } = await setupTwoPlayers(context);
+		await startGame(host, guest);
+
+		// Buy a road first so host can place it.
+		await host
+			.locator('button[title*="Crossroad ($8)"]')
+			.first()
+			.click();
+
+		// Select the road from inventory and place on an allowed pulsing tile.
+		await host.getByRole("button", { name: "plus icon" }).first().click();
+		const hostTargetTile = host.locator("button.tile.pulsing:enabled").first();
+		await hostTargetTile.click();
+		const targetId = await hostTargetTile.getAttribute("id");
+		expect(targetId).toBeTruthy();
+		const expectedRoad = host.locator(`#${targetId} img[src*="road-plus.svg"]`).first();
+		await expect(expectedRoad).toBeVisible();
+
+		// Verify the same board position on guest now has the placed road.
+		const guestRoad = guest.locator(`#${targetId} img[src*="road-plus.svg"]`).first();
+		await expect(guestRoad).toBeVisible();
+
+		await host.close();
+		await guest.close();
+		await context.close();
+	});
+
 	test("repeated create/join/start cycles stay stable", async ({ browser }) => {
 		for (let i = 0; i < 3; i += 1) {
 			const context = await newTestContext(browser);

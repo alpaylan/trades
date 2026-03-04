@@ -114,7 +114,36 @@ function App() {
 						Start Game
 					</button>
 				) : null}
-				{multiplayer.error ? <span style={{ color: "#b00020" }}>{multiplayer.error}</span> : null}
+				<span
+				style={{
+					fontSize: "0.75rem",
+					padding: "2px 8px",
+					borderRadius: "999px",
+					backgroundColor:
+						multiplayer.status === "connected"
+							? "#e8f5e9"
+							: multiplayer.status === "connecting"
+								? "#fff3e0"
+								: multiplayer.status === "error"
+									? "#ffebee"
+									: "#f5f5f5",
+					color:
+						multiplayer.status === "connected"
+							? "#2e7d32"
+							: multiplayer.status === "error"
+								? "#c62828"
+								: "#616161",
+				}}
+			>
+				{multiplayer.status === "connected"
+					? `Connected (v${multiplayer.version})`
+					: multiplayer.status === "connecting"
+						? "Connecting..."
+						: multiplayer.status === "error"
+							? "Disconnected"
+							: "Not connected"}
+			</span>
+			{multiplayer.error ? <span style={{ color: "#b00020", fontSize: "0.8rem" }}>{multiplayer.error}</span> : null}
 			</div>
 			{multiplayer.room && !multiplayer.room.started ? (
 				<div style={{ display: "flex", justifyContent: "center", marginBottom: "0.75rem" }}>

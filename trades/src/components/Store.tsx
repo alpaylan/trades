@@ -56,9 +56,10 @@ function StoreItem({
 	const lbPending =
 		state.activeEventEffects?.logisticBreakthrough &&
 		state.logisticBreakthroughPicks < 2;
-	const speculativePending =
+	void (
 		state.activeEventEffects?.speculativeInvestment &&
-		!state.speculativeInvestmentResolved[current];
+		!state.speculativeInvestmentResolved[current]
+	);
 	const isFreeActionTile = item.type_ === "action" && giftPending;
 	const isFreeRoadTile = item.type_ === "road" && lbPending;
 	const basePrice =
