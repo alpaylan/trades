@@ -37,6 +37,10 @@ const CARD_IMAGES: Record<string, { src: string; alt: string }> = {
 	robin_hoods_toll: { src: "/assets/event-card-robin-hoods-toll.png", alt: "Robin Hood's Toll" },
 	reversed_currents: { src: "/assets/event-card-reversed-currents.png", alt: "Reversed Currents" },
 	time_skip: { src: "/assets/event-card-time-skip.png", alt: "Time Skip" },
+	international_trade_treaty: {
+		src: "/assets/event-card-international-trade-treaty.png",
+		alt: "International Trade Treaty",
+	},
 };
 
 export default function EventCardOverlay() {
@@ -47,6 +51,27 @@ export default function EventCardOverlay() {
 
 	const isPreview = !state.pendingRoundEnd;
 	const cardInfo = CARD_IMAGES[state.eventCardContent];
+	// #region agent log
+	fetch("http://127.0.0.1:7580/ingest/bf122d7c-c5a4-46ee-a115-f97e4e7f2fd9", {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+			"X-Debug-Session-Id": "acabf9",
+		},
+		body: JSON.stringify({
+			sessionId: "acabf9",
+			runId: "pre-fix",
+			hypothesisId: "H1",
+			location: "EventCardOverlay.tsx:cardInfo",
+			message: "Event card render",
+			data: {
+				eventCardContent: state.eventCardContent,
+				hasCardInfo: !!cardInfo,
+			},
+			timestamp: Date.now(),
+		}),
+	}).catch(() => {});
+	// #endregion
 	const showExtendedStack = isPreview && state.lastDrawnWasExtendedTimeline;
 	const extendedCardInfo = CARD_IMAGES["extended_timeline"];
 	const cardKey = `${state.eventCardContent}-${isPreview ? "preview" : "draw"}`;

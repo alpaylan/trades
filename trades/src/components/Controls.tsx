@@ -159,6 +159,13 @@ export default function Controls() {
 	const robinHoodDelta = state.robinHoodTollDelta?.[turn] ?? 0;
 	const showRobinHoodsTollPopup =
 		robinHoodsTollActive && !state.robinHoodTollPopupShown?.[turn] && robinHoodDelta !== 0;
+	const tradeTreatyActive = state.activeEventEffects?.internationalTradeTreaty ?? false;
+	const tradeTreatyBonus = state.internationalTradeTreatyBonus?.[turn] ?? 0;
+	const tradeTreatyRoutes = tradeTreatyBonus > 0 ? tradeTreatyBonus / 5 : 0;
+	const showTradeTreatyPopup =
+		tradeTreatyActive &&
+		tradeTreatyBonus > 0 &&
+		!state.internationalTradeTreatyPopupShown?.[turn];
 	const actionsUsed = state.actionsUsedThisTurn ?? 0;
 	const actionsLeft = Math.max(0, 2 - actionsUsed);
 	const giftPending =
@@ -399,6 +406,57 @@ export default function Controls() {
 						<button
 							type="button"
 							onClick={() => dispatch({ type: "DISMISS_ROBIN_HOODS_TOLL_POPUP" })}
+							style={{
+								padding: "8px 24px",
+								borderRadius: 8,
+								border: "none",
+								background: "#2e7d32",
+								color: "#fff",
+								cursor: "pointer",
+								fontWeight: 600,
+								fontSize: 14,
+							}}
+						>
+							OK
+						</button>
+					</div>
+				</div>
+			)}
+			{showTradeTreatyPopup && (
+				<div
+					style={{
+						position: "fixed",
+						inset: 0,
+						zIndex: 10000,
+						display: "flex",
+						alignItems: "center",
+						justifyContent: "center",
+						backgroundColor: "rgba(0,0,0,0.55)",
+					}}
+					role="dialog"
+					aria-modal="true"
+					aria-label="International Trade Treaty result"
+				>
+					<div
+						style={{
+							background: "#fff",
+							borderRadius: 14,
+							padding: "24px 32px",
+							boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+							textAlign: "center",
+							minWidth: 280,
+							maxWidth: 380,
+						}}
+					>
+						<p style={{ margin: "0 0 8px", fontWeight: 700, fontSize: 18, color: "#1a1a1a" }}>
+							International Trade Treaty
+						</p>
+						<p style={{ margin: "0 0 16px", fontSize: 14, color: "#333" }}>
+							{`Connectivity is the key to wealth! You completed ${tradeTreatyRoutes} trade route${tradeTreatyRoutes === 1 ? "" : "s"} with your neighbors and received ${tradeTreatyBonus} Gold thanks to the International Trade Treaty.`}
+						</p>
+						<button
+							type="button"
+							onClick={() => dispatch({ type: "DISMISS_INTERNATIONAL_TRADE_TREATY_POPUP" })}
 							style={{
 								padding: "8px 24px",
 								borderRadius: 8,

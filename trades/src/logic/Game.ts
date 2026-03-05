@@ -545,6 +545,76 @@ export function getCustomsGateDirection(game: Game, tile: OwnedTile): keyof Acce
     return null;
 }
 
+export type TradeRoute = {
+    between: [TileOwner, TileOwner];
+    /** Coordinates of the border pair that forms this trade route (current tile and its neighbor). */
+    tiles: { a: Point; b: Point };
+};
+
+/**
+ * Compute all trade routes on the board.
+ *
+ * A trade route exists between two neighboring players if:
+ * - There is a pair of adjacent tiles (sharing an edge),
+ * - Each tile is owned by a different player,
+ * - Both tiles are road tiles with customs gates,
+ * - Each road's open side (accessibleDirections) faces the other tile.
+ */
+export function findTradeRoutes(game: Game): TradeRoute[] {
+    const routes: TradeRoute[] = [];
+    const seenPairs = new Set<string>();
+
+    const oppositeDirection: Record<keyof AccessibleDirections, keyof AccessibleDirections> = {
+        up: "bottom",
+        right: "left",
+        bottom: "up",
+        left: "right",
+    };
+
+    for (const tile of Object.values(game.tiles)) {
+        if (!tile.owned || tile.content.type_ !== "road" || !tile.content.customs) continue;
+
+        const dir = getCustomsGateDirection(game, tile);
+        if (!dir) continue;
+
+        // Neighbor coordinates in the direction of the gate.
+        let nx = tile.x;
+        let ny = tile.y;
+        if (dir === "up") ny -= 1;
+        else if (dir === "right") nx += 1;
+        else if (dir === "bottom") ny += 1;
+        else if (dir === "left") nx -= 1;
+
+        const neighborKey = `${ny}-${nx}` as keyof typeof game.tiles;
+        const neighbor = game.tiles[neighborKey];
+        if (!neighbor || !neighbor.owned) continue;
+        if (neighbor.owner === tile.owner) continue;
+        if (neighbor.content.type_ !== "road" || !neighbor.content.customs) continue;
+
+        // Neighbor must have a gate facing back to this tile.
+        const neighborDir = getCustomsGateDirection(game, neighbor);
+        if (!neighborDir || neighborDir !== oppositeDirection[dir]) continue;
+
+        const owners: [TileOwner, TileOwner] =
+            tile.owner < neighbor.owner ? [tile.owner, neighbor.owner] : [neighbor.owner, tile.owner];
+        // Build a canonical key for this border pair so that iterating from
+        // either side (tile vs neighbor) does not double-count the route.
+        const coordA = `${tile.x},${tile.y}`;
+        const coordB = `${neighbor.x},${neighbor.y}`;
+        const [firstCoord, secondCoord] = coordA < coordB ? [coordA, coordB] : [coordB, coordA];
+        const pairKey = `${owners[0]}-${owners[1]}-${firstCoord}-${secondCoord}`;
+        if (seenPairs.has(pairKey)) continue;
+        seenPairs.add(pairKey);
+
+        routes.push({
+            between: owners,
+            tiles: { a: { x: tile.x, y: tile.y }, b: { x: neighbor.x, y: neighbor.y } },
+        });
+    }
+
+    return routes;
+}
+
 export function calculateUserProduction(game: Game, owner: TileOwner): ResourceCollection {
     const productionTotals = baseProductions();
     const startPoint = userCapital[owner];
