@@ -1,0 +1,16 @@
+<svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 53 53" width="106" height="106">
+  <rect x="0" y="0" width="53" height="53" fill="#ffffff"/>
+  <!-- Customs gate: two posts + horizontal barrier -->
+  <g stroke="#2e7d32" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Left post -->
+    <line x1="14" y1="12" x2="14" y2="42"/>
+    <!-- Right post -->
+    <line x1="39" y1="12" x2="39" y2="42"/>
+    <!-- Horizontal barrier (gate bar) -->
+    <line x1="14" y1="26" x2="39" y2="26"/>
+    <!-- Small roof/canopy over gate -->
+    <path d="M12 12 L26.5 6 L41 12" fill="none"/>
+  </g>
+  <!-- Barrier accent (darker strip on the bar) -->
+  <rect x="16" y="24" width="21" height="4" rx="1" fill="#1b5e20" opacity="0.7"/>
+</svg>

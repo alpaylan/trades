@@ -2,6 +2,7 @@ import { reducer, type Action, type State } from "./engine";
 import {
 	type ActionType,
 	ACTION_TYPES,
+	isRoadEligibleForCustoms,
 	type ProductionLevel,
 	PRODUCTION_LEVELS,
 	type ProductionType,
@@ -96,18 +97,24 @@ function placeCandidates(state: State): Action[] {
 
 function roadActionCandidates(state: State): Action[] {
 	const owner = state.game.turn;
-	const ownRoadCoords = Object.values(state.game.tiles).flatMap((tile) => {
-		if (!tile.owned || tile.owner !== owner || tile.content.type_ !== "road") {
-			return [];
-		}
-		return [{ x: tile.x, y: tile.y, road: tile.content.road }];
-	});
+	const user = state.game.users[owner];
+	const ownRoadTiles = Object.values(state.game.tiles).filter(
+		(tile): tile is typeof tile & { content: { type_: "road"; customs: boolean } } =>
+			!!tile.owned && tile.owner === owner && tile.content.type_ === "road",
+	);
 	const moves: Action[] = [];
 
-	for (const tile of ownRoadCoords) {
+	for (const tile of ownRoadTiles) {
 		moves.push({ type: "TOLL_TILE", payload: { x: tile.x, y: tile.y } });
 		moves.push({ type: "BLOCK_TILE", payload: { x: tile.x, y: tile.y } });
 		moves.push({ type: "UNBLOCK_TILE", payload: { x: tile.x, y: tile.y } });
+		if (
+			!tile.content.customs &&
+			(user.inventory["action:customs"] ?? 0) > 0 &&
+			isRoadEligibleForCustoms(state.game, tile)
+		) {
+			moves.push({ type: "CUSTOMS_TILE", payload: { x: tile.x, y: tile.y } });
+		}
 		for (const rotation of ROAD_ROTATIONS.filter(
 			(value): value is 90 | 180 | 270 => value !== 0,
 		)) {

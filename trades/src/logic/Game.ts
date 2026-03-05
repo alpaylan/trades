@@ -78,10 +78,12 @@ export type RoadTile = {
     rotation: RoadRotation
     blocked: boolean
     toll: number
+    /** Customs gate applied to this road (bought and placed via action tile). */
+    customs: boolean
 }
 
 export function road(road: RoadType, rotation: RoadRotation): RoadTile {
-    return { type_: "road", road, rotation, blocked: false, toll: 0 }
+    return { type_: "road", road, rotation, blocked: false, toll: 0, customs: false }
 }
 
 export type AccessibleDirections = {
@@ -166,7 +168,7 @@ export function production(production: ProductionType, level: ProductionLevel): 
     return { type_: "production", production, level }
 }
 
-export const ACTION_TYPES = ["turn", "toll", "block", "unblock"] as const;
+export const ACTION_TYPES = ["turn", "toll", "block", "unblock", "customs"] as const;
 export type ActionType = typeof ACTION_TYPES[number];
 
 export type ActionTile = {
@@ -180,7 +182,8 @@ export const actionPrices = {
     turn: 5,
     toll: 5,
     block: 5,
-    unblock: 5
+    unblock: 5,
+    customs: 5
 };
 
 export type Tilable = RoadTile | ProductionTile | ActionTile
@@ -494,6 +497,52 @@ function isPassableRoadOrHall(tile: Tile): tile is PassableRoadOrHall {
 
 function tileKey(point: Point): `${number}-${number}` {
     return `${point.y}-${point.x}` as `${number}-${number}`;
+}
+
+/**
+ * True if this road tile can have a customs gate: it must be on the border
+ * (adjacent to at least one tile owned by another player) and at least one
+ * open direction of the road must point toward that neighbor (road "faces" the border).
+ */
+export function isRoadEligibleForCustoms(game: Game, tile: OwnedTile): boolean {
+    if (tile.content.type_ !== "road" || tile.content.customs) return false;
+    const dirs = accessibleDirections(tile.content);
+    const owner = tile.owner;
+    const { x, y } = tile;
+    const neighbors: { dir: keyof typeof dirs; key: string }[] = [
+        { dir: "up", key: `${y - 1}-${x}` },
+        { dir: "right", key: `${y}-${x + 1}` },
+        { dir: "bottom", key: `${y + 1}-${x}` },
+        { dir: "left", key: `${y}-${x - 1}` },
+    ];
+    for (const { dir, key } of neighbors) {
+        const neighbor = game.tiles[key as keyof typeof game.tiles];
+        if (!neighbor || !neighbor.owned) continue;
+        if (neighbor.owner === owner) continue;
+        if (dirs[dir]) return true;
+    }
+    return false;
+}
+
+/** Direction toward the neighboring player (open road side facing the border). Used to place the gate icon. */
+export function getCustomsGateDirection(game: Game, tile: OwnedTile): keyof AccessibleDirections | null {
+    if (tile.content.type_ !== "road" || !tile.content.customs) return null;
+    const dirs = accessibleDirections(tile.content);
+    const owner = tile.owner;
+    const { x, y } = tile;
+    const neighbors: { dir: keyof typeof dirs; key: string }[] = [
+        { dir: "up", key: `${y - 1}-${x}` },
+        { dir: "right", key: `${y}-${x + 1}` },
+        { dir: "bottom", key: `${y + 1}-${x}` },
+        { dir: "left", key: `${y}-${x - 1}` },
+    ];
+    for (const { dir, key } of neighbors) {
+        const neighbor = game.tiles[key as keyof typeof game.tiles];
+        if (!neighbor || !neighbor.owned) continue;
+        if (neighbor.owner === owner) continue;
+        if (dirs[dir]) return dir;
+    }
+    return null;
 }
 
 export function calculateUserProduction(game: Game, owner: TileOwner): ResourceCollection {

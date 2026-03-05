@@ -3,6 +3,9 @@ import {
 	type AccessibleDirections,
 	accessibleDirections,
 	type AccessibleTile,
+	getCustomsGateDirection,
+	isRoadEligibleForCustoms,
+	type TileOwner,
 	CITY_HALLS,
 	ROAD_ROTATIONS,
 	type Tile as TileType,
@@ -10,6 +13,16 @@ import {
 	toKey,
 } from "../logic/Game";
 import { useGlobalContext } from "../logic/State";
+
+const TILE_SIZE = 32;
+const GATE_STRIP_THICKNESS = TILE_SIZE * 0.1; // 10% of tile
+
+const DARK_COLOR_BY_OWNER: Record<TileOwner, string> = {
+	green: "#1b5e20",
+	orange: "#e65100",
+	blue: "#0d47a1",
+	red: "#b71c1c",
+};
 
 function directionMatch(
 	directions: AccessibleDirections,
@@ -53,6 +66,7 @@ export default function Tile({
 	const ended = state.endedThisRound[current];
 	const canStartAction = actionsUsed < 2 && !ended;
 	const purchasedForUser = state.purchasedThisTurn[current] ?? {};
+	const userInventory = state.game.users[current]?.inventory ?? {};
 
 	if (!tile.owned) {
 		return (
@@ -91,7 +105,8 @@ export default function Tile({
 					? "Unblock disabled (Broken Logistics event)"
 					: `Road (${content.road}) - rotation ${content.rotation}°` +
 						(content.blocked ? " - blocked" : "") +
-						(content.toll ? " - toll enabled" : ""),
+						(content.toll ? " - toll enabled" : "") +
+						(content.customs ? " - customs gate" : ""),
 		)
 		.with({ type_: "hall" }, (content) => `City hall (level ${content.level})`)
 		.with(
@@ -121,12 +136,18 @@ export default function Tile({
 					purchasedCount += purchasedForUser[key] ?? 0;
 				}
 			} else if (state.selected.type_ === "action") {
-				purchasedCount = purchasedForUser[`action:${state.selected.action}` as TileKey] ?? 0;
+				// Action tiles: allow if we have any in inventory (this turn or previous)
+				purchasedCount = userInventory[`action:${state.selected.action}` as TileKey] ?? 0;
 			} else {
 				const key = toKey(state.selected);
 				purchasedCount = purchasedForUser[key] ?? 0;
 			}
 			canClick = purchasedCount > 0;
+		}
+		// Action tiles: must have at least one in inventory to click (also when canStartAction is true)
+		if (state.selected.type_ === "action") {
+			const actionCount = userInventory[`action:${state.selected.action}` as TileKey] ?? 0;
+			canClick = canClick && actionCount > 0;
 		}
 		// Toll action: only roads in player's region, without toll yet
 		if (
@@ -162,6 +183,18 @@ export default function Tile({
 			state.activeEventEffects?.brokenLogistics
 		) {
 			canClick = false;
+		}
+		// Customs gate: only border roads whose open side faces a neighbor (eligible for customs)
+		if (
+			state.selected.type_ === "action" &&
+			state.selected.action === "customs"
+		) {
+			canClick =
+				canClick &&
+				tile.content.type_ === "road" &&
+				tile.owner === current &&
+				!tile.content.customs &&
+				isRoadEligibleForCustoms(state.game, tile);
 		}
 		// Gift event: must take free action tile first; disable all board actions
 		if (
@@ -199,6 +232,12 @@ export default function Tile({
 							const content = tile.owned ? tile.content : null;
 							if (content?.type_ === "road") {
 								match(tile_.action)
+									.with("customs", () => {
+										dispatch({
+											type: "CUSTOMS_TILE",
+											payload: { x: tile.x, y: tile.y },
+										});
+									})
 									.with("turn", () => {
 										if (content.road === "plus") return;
 										if (content.road === "i") {
@@ -255,49 +294,106 @@ export default function Tile({
 		>
 			{match(tile.content)
 				.with({ type_: "empty" }, () => <></>)
-				.with({ type_: "road" }, (tile) => (
-					<>
-						<img
-							src={`/assets/road-${tile.road}.svg`}
-							alt={`${tile.road} icon`}
-							style={{
-								width: "32px",
-								height: "32px",
-								transform: `rotate(${tile.rotation}deg)`,
-							}}
-						/>
-						{tile.blocked ? (
+				.with({ type_: "road" }, (roadContent) => {
+					const gateDir = roadContent.customs
+						? getCustomsGateDirection(state.game, tile)
+						: null;
+					const gateStripStyle = gateDir
+						? (() => {
+								const base = {
+									position: "absolute" as const,
+									pointerEvents: "none" as const,
+									backgroundColor: DARK_COLOR_BY_OWNER[tile.owner],
+								};
+								switch (gateDir) {
+									case "up":
+										return {
+											...base,
+											top: 0,
+											left: 0,
+											width: TILE_SIZE,
+											height: GATE_STRIP_THICKNESS,
+										};
+									case "right":
+										return {
+											...base,
+											right: 0,
+											top: 0,
+											width: GATE_STRIP_THICKNESS,
+											height: TILE_SIZE,
+										};
+									case "bottom":
+										return {
+											...base,
+											bottom: 0,
+											left: 0,
+											width: TILE_SIZE,
+											height: GATE_STRIP_THICKNESS,
+										};
+									case "left":
+										return {
+											...base,
+											left: 0,
+											top: 0,
+											width: GATE_STRIP_THICKNESS,
+											height: TILE_SIZE,
+										};
+									default:
+										return { ...base, width: 0, height: 0 };
+								}
+							})()
+						: null;
+					return (
+						<>
 							<img
-								src="/assets/block.svg"
-								alt="blocked icon"
+								src={`/assets/road-${roadContent.road}.svg`}
+								alt={`${roadContent.road} icon`}
 								style={{
-									position: "absolute",
-									top: 0,
-									left: 0,
 									width: "32px",
 									height: "32px",
-									opacity: 0.85,
-									pointerEvents: "none",
+									transform: `rotate(${roadContent.rotation}deg)`,
 								}}
 							/>
-						) : null}
-						{tile.toll ? (
-							<span
-								style={{
-									position: "absolute",
-									top: 2,
-									right: 2,
-									width: 6,
-									height: 6,
-									borderRadius: "50%",
-									backgroundColor: "#c62828",
-									pointerEvents: "none",
-								}}
-								aria-hidden="true"
-							/>
-						) : null}
-					</>
-				))
+							{roadContent.blocked ? (
+								<img
+									src="/assets/block.svg"
+									alt="blocked icon"
+									style={{
+										position: "absolute",
+										top: 0,
+										left: 0,
+										width: "32px",
+										height: "32px",
+										opacity: 0.85,
+										pointerEvents: "none",
+									}}
+								/>
+							) : null}
+							{roadContent.toll ? (
+								<span
+									style={{
+										position: "absolute",
+										top: 2,
+										right: 2,
+										width: 6,
+										height: 6,
+										borderRadius: "50%",
+										backgroundColor: "#c62828",
+										pointerEvents: "none",
+									}}
+									aria-hidden="true"
+								/>
+							) : null}
+							{gateStripStyle ? (
+								<span
+									role="img"
+									aria-label="customs gate"
+									style={gateStripStyle}
+								/>
+							) : null}
+						</>
+					);
+				})
 				.with({ type_: "production" }, (content) =>
 					content.production === "dollar" ? (
 						<span

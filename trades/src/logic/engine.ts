@@ -6,6 +6,7 @@ import {
 	calculateUserProduction,
 	CITY_HALLS,
 	game,
+	isRoadEligibleForCustoms,
 	next,
 	ROAD_ROTATIONS,
 	RESOURCE_TYPES,
@@ -230,6 +231,7 @@ export type Action =
 	| { type: "BLOCK_TILE"; payload: { x: number; y: number } }
 	| { type: "UNBLOCK_TILE"; payload: { x: number; y: number } }
 	| { type: "TOLL_TILE"; payload: { x: number; y: number } }
+	| { type: "CUSTOMS_TILE"; payload: { x: number; y: number } }
 	| { type: "PLACE_TILE"; payload: { x: number; y: number; tile: Tilable } }
 	| { type: "DISMISS_EVENT_CARD" }
 	| { type: "DISMISS_BLACK_MARKET_POPUP" }
@@ -259,6 +261,7 @@ export const AUTHORITATIVE_ACTION_TYPES: Action["type"][] = [
 	"BLOCK_TILE",
 	"UNBLOCK_TILE",
 	"TOLL_TILE",
+	"CUSTOMS_TILE",
 	"PLACE_TILE",
 	"DISMISS_EVENT_CARD",
 	"SPECULATIVE_ROLL",
@@ -780,6 +783,66 @@ export const reducer = (state: State, action: Action): State => {
 						[`${y}-${x}`]: {
 							...tile,
 							content: { ...tile.content, toll: 1 },
+						},
+					},
+				},
+				actionsUsedThisTurn: fromPurchaseThisTurn ? state.actionsUsedThisTurn : actionsUsed + 1,
+				purchasedThisTurn,
+				history: historyState,
+			};
+		})
+		.with({ type: "CUSTOMS_TILE" }, (innerAction) => {
+			if (state.activeEventEffects?.speculativeInvestment && !state.speculativeInvestmentResolved[state.game.turn]) {
+				return state;
+			}
+			const { x, y } = innerAction.payload;
+			const user = state.game.users[state.game.turn];
+			const tile = state.game.tiles[`${y}-${x}`];
+			const actionsUsed = state.actionsUsedThisTurn;
+			const inventoryKey = "action:customs" as TileKey;
+			const userPurchased = state.purchasedThisTurn[user.color] ?? {};
+			const fromPurchaseThisTurn = (userPurchased[inventoryKey] ?? 0) > 0;
+			if (!fromPurchaseThisTurn && actionsUsed >= 2) {
+				return state;
+			}
+			if (!tile.owned || tile.owner !== user.color || tile.content.type_ !== "road" || tile.content.customs || (user.inventory["action:customs"] ?? 0) <= 0) {
+				return state;
+			}
+			if (!isRoadEligibleForCustoms(state.game, tile)) {
+				return state;
+			}
+
+			let purchasedThisTurn: PurchasedThisTurn = state.purchasedThisTurn;
+			if (fromPurchaseThisTurn) {
+				const remaining = (userPurchased[inventoryKey] ?? 0) - 1;
+				const updatedUserPurchased: Partial<Record<TileKey, number>> = { ...userPurchased };
+				if (remaining > 0) {
+					updatedUserPurchased[inventoryKey] = remaining;
+				} else {
+					delete updatedUserPurchased[inventoryKey];
+				}
+				purchasedThisTurn = {
+					...state.purchasedThisTurn,
+					[user.color]: updatedUserPurchased,
+				};
+			}
+
+			return {
+				...state,
+				game: {
+					...state.game,
+					users: {
+						...state.game.users,
+						[user.color]: {
+							...user,
+							inventory: { ...user.inventory, "action:customs": user.inventory["action:customs"] - 1 },
+						},
+					},
+					tiles: {
+						...state.game.tiles,
+						[`${y}-${x}`]: {
+							...tile,
+							content: { ...tile.content, customs: true },
 						},
 					},
 				},

@@ -35,6 +35,7 @@ function StoreItem({
 	icon,
 	text,
 	showGoldBars,
+	halfSize,
 }: {
 	resources: ResourceCollection;
 	price: number;
@@ -42,6 +43,8 @@ function StoreItem({
 	icon: string;
 	text: string;
 	showGoldBars?: { iconCount: number };
+	/** When true, button is half height (half of a normal square). */
+	halfSize?: boolean;
 }) {
 	const { state, dispatch } = useGlobalContext();
 	const current = state.game.turn;
@@ -85,14 +88,25 @@ function StoreItem({
 				if (disabled) return;
 				dispatch({ type: "BUY_ITEM", payload: { item, price } });
 			}}
-			style={disabled ? { opacity: 0.4, pointerEvents: "none" } : undefined}
+			style={
+				disabled
+					? { opacity: 0.4, pointerEvents: "none" as const }
+					: halfSize
+					? { height: "1rem", minHeight: "1rem", padding: "0.05rem 0.1rem", gap: 4 }
+					: undefined
+			}
 		>
 			{showGoldBars ? (
-				<GoldBars count={showGoldBars.iconCount} size={16} />
+				<GoldBars count={showGoldBars.iconCount} size={halfSize ? 8 : 16} />
 			) : (
-				<img src={icon} alt={`${item.type_} icon`} title={tooltip} />
+				<img
+					src={icon}
+					alt={`${item.type_} icon`}
+					title={tooltip}
+					style={halfSize ? { maxHeight: "0.9rem", width: "auto" } : undefined}
+				/>
 			)}
-			<span>{displayPrice}</span>
+			<span style={halfSize ? { fontSize: "0.7rem" } : undefined}>{displayPrice}</span>
 		</button>
 	);
 }
@@ -272,6 +286,13 @@ export default function Store({
 					item={{ type_: "action", action: "unblock" }}
 					icon="/assets/unblock.svg"
 					text="Unblock a tile"
+				/>
+				<StoreItem
+					resources={resources}
+					price={5}
+					item={{ type_: "action", action: "customs" }}
+					icon="/assets/customs.svg"
+					text="Customs gate (5 gold)"
 				/>
 			</div>
 			<div
