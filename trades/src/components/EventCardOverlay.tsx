@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useGlobalContext } from "../logic/State";
 
 const SQUARE_COLORS = ["#43a047", "#e53935", "#ffc107", "#1e88e5"];
@@ -41,11 +41,31 @@ const CARD_IMAGES: Record<string, { src: string; alt: string }> = {
 		src: "/assets/event-card-international-trade-treaty.png",
 		alt: "International Trade Treaty",
 	},
+	economic_isolation: {
+		src: "/assets/event-card-economic-isolation.png",
+		alt: "Economic Isolation",
+	},
+};
+
+const EVENT_CARD_FALLBACK: Record<string, { title: string; rule: string }> = {
+	international_trade_treaty: {
+		title: "International Trade Treaty",
+		rule: "Connectivity is the key to wealth! For each completed trade route you have with a neighbor (both sides have customs and roads facing each other), you receive 5 Gold at the start of this round.",
+	},
+	economic_isolation: {
+		title: "Economic Isolation",
+		rule: "Connectivity is mandatory! Any player who has not established at least one completed trade route with a neighbor must pay 3 Gold. If a player cannot afford the gold, their Gold production is reduced by 1.",
+	},
 };
 
 export default function EventCardOverlay() {
 	const { state, dispatch } = useGlobalContext();
 	const [showTimeSkipConfirm, setShowTimeSkipConfirm] = useState(false);
+	const [imageError, setImageError] = useState(false);
+
+	useEffect(() => {
+		setImageError(false);
+	}, [state.eventCardContent]);
 
 	if (!state.showEventCard) return null;
 
@@ -135,7 +155,11 @@ export default function EventCardOverlay() {
 																			? "Reversed Currents event card"
 																			: state.eventCardContent === "time_skip"
 																				? "Time Skip event card"
-																				: "Event card"
+																				: state.eventCardContent === "international_trade_treaty"
+																					? "International Trade Treaty event card"
+																					: state.eventCardContent === "economic_isolation"
+																						? "Economic Isolation event card"
+																						: "Event card"
 			}
 		>
 			<div
@@ -185,15 +209,39 @@ export default function EventCardOverlay() {
 							}}
 						>
 							{cardInfo ? (
-								<img
-									src={cardInfo.src}
-									alt={cardInfo.alt}
-									style={{
-										width: "100%",
-										height: "100%",
-										objectFit: "contain",
-									}}
-								/>
+								EVENT_CARD_FALLBACK[state.eventCardContent] && imageError ? (
+									<div
+										style={{
+											display: "flex",
+											flexDirection: "column",
+											alignItems: "center",
+											justifyContent: "center",
+											padding: 24,
+											height: "100%",
+											textAlign: "center",
+											background: "linear-gradient(180deg, #f5f0e6 0%, #e8e0d0 100%)",
+											borderRadius: 8,
+										}}
+									>
+										<p style={{ margin: "0 0 12px", fontSize: 18, fontWeight: 700, color: "#1a1a1a" }}>
+											{EVENT_CARD_FALLBACK[state.eventCardContent].title}
+										</p>
+										<p style={{ margin: 0, fontSize: 13, color: "#333", lineHeight: 1.45 }}>
+											{EVENT_CARD_FALLBACK[state.eventCardContent].rule}
+										</p>
+									</div>
+								) : (
+									<img
+										src={cardInfo.src}
+										alt={cardInfo.alt}
+										onError={() => setImageError(true)}
+										style={{
+											width: "100%",
+											height: "100%",
+											objectFit: "contain",
+										}}
+									/>
+								)
 							) : (
 								<div
 									style={{
@@ -240,15 +288,39 @@ export default function EventCardOverlay() {
 						{/* Card front (face up) */}
 						<div className="event-card-face event-card-front">
 							{cardInfo ? (
-								<img
-									src={cardInfo.src}
-									alt={cardInfo.alt}
-									style={{
-										width: "100%",
-										height: "100%",
-										objectFit: "contain",
-									}}
-								/>
+								EVENT_CARD_FALLBACK[state.eventCardContent] && imageError ? (
+									<div
+										style={{
+											display: "flex",
+											flexDirection: "column",
+											alignItems: "center",
+											justifyContent: "center",
+											padding: 24,
+											minHeight: "100%",
+											textAlign: "center",
+											background: "linear-gradient(180deg, #f5f0e6 0%, #e8e0d0 100%)",
+											borderRadius: 8,
+										}}
+									>
+										<p style={{ margin: "0 0 12px", fontSize: 18, fontWeight: 700, color: "#1a1a1a" }}>
+											{EVENT_CARD_FALLBACK[state.eventCardContent].title}
+										</p>
+										<p style={{ margin: 0, fontSize: 13, color: "#333", lineHeight: 1.45 }}>
+											{EVENT_CARD_FALLBACK[state.eventCardContent].rule}
+										</p>
+									</div>
+								) : (
+									<img
+										src={cardInfo.src}
+										alt={cardInfo.alt}
+										onError={() => setImageError(true)}
+										style={{
+											width: "100%",
+											height: "100%",
+											objectFit: "contain",
+										}}
+									/>
+								)
 							) : (
 								<div
 									style={{

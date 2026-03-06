@@ -3,6 +3,7 @@ import {
 	type ActionType,
 	ACTION_TYPES,
 	isRoadEligibleForCustoms,
+	type OwnedTile,
 	type ProductionLevel,
 	PRODUCTION_LEVELS,
 	type ProductionType,
@@ -99,8 +100,8 @@ function roadActionCandidates(state: State): Action[] {
 	const owner = state.game.turn;
 	const user = state.game.users[owner];
 	const ownRoadTiles = Object.values(state.game.tiles).filter(
-		(tile): tile is typeof tile & { content: { type_: "road"; customs: boolean } } =>
-			!!tile.owned && tile.owner === owner && tile.content.type_ === "road",
+		(tile): tile is OwnedTile & { content: { type_: "road"; customs: boolean } } =>
+			tile.owned === true && tile.owner === owner && tile.content.type_ === "road",
 	);
 	const moves: Action[] = [];
 

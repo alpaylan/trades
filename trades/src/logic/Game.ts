@@ -727,3 +727,106 @@ export function calculateUserProduction(game: Game, owner: TileOwner): ResourceC
 
     return productionTotals;
 }
+
+/**
+ * Example mid-game board setup roughly matching the screenshot the user shared.
+ *
+ * This scenario:
+ * - Starts on round 4, with Blue to play.
+ * - Creates simple road connections from each City Hall toward the center borders.
+ * - Adds one customs-enabled trade route between every neighboring player pair
+ *   (green–orange, orange–blue, blue–red, red–green).
+ *
+ * Activate it by using the URL query `?scenario=example-board` (wired in `engine.ts`).
+ */
+export function exampleBoardScenarioGame(): Game {
+    const base = game();
+    const tiles: Game["tiles"] = { ...base.tiles };
+
+    const setRoad = (
+        x: number,
+        y: number,
+        owner: TileOwner,
+        roadType: RoadType,
+        rotation: RoadRotation,
+        options?: { customs?: boolean; blocked?: boolean; toll?: number },
+    ) => {
+        tiles[`${y}-${x}`] = owned(x, y, owner, {
+            type_: "road",
+            road: roadType,
+            rotation,
+            blocked: options?.blocked ?? false,
+            toll: options?.toll ?? 0,
+            customs: options?.customs ?? false,
+        });
+    };
+
+    // Connect Green city hall (4,4) to the Green–Orange border with a horizontal road.
+    setRoad(5, 4, "green", "i", 0);
+    setRoad(6, 4, "green", "i", 0);
+    setRoad(7, 4, "green", "i", 0);
+    // Trade route between Green (8,4) and Orange (9,4).
+    setRoad(8, 4, "green", "i", 0, { customs: true });
+    setRoad(9, 4, "orange", "i", 0, { customs: true });
+
+    // Connect Orange city hall (13,4) downwards to the Orange–Blue border.
+    setRoad(13, 5, "orange", "i", 90);
+    setRoad(13, 6, "orange", "i", 90);
+    setRoad(13, 7, "orange", "i", 90);
+    // Trade route between Orange (13,8) and Blue (13,9).
+    setRoad(13, 8, "orange", "i", 90, { customs: true });
+    setRoad(13, 9, "blue", "i", 90, { customs: true });
+
+    // Connect Blue city hall (13,13) to the Blue–Red border with a horizontal road.
+    setRoad(12, 13, "blue", "i", 0);
+    setRoad(11, 13, "blue", "i", 0);
+    setRoad(10, 13, "blue", "i", 0);
+    // Trade route between Blue (9,13) and Red (8,13).
+    setRoad(9, 13, "blue", "i", 0, { customs: true });
+    setRoad(8, 13, "red", "i", 0, { customs: true });
+
+    // Connect Red city hall (4,13) upwards to the Red–Green border.
+    setRoad(4, 12, "red", "i", 90);
+    setRoad(4, 11, "red", "i", 90);
+    setRoad(4, 10, "red", "i", 90);
+    // Trade route between Red (4,9) and Green (4,8).
+    setRoad(4, 9, "red", "i", 90, { customs: true });
+    setRoad(4, 8, "green", "i", 90, { customs: true });
+
+    const gameWithTiles: Game = {
+        ...base,
+        tiles,
+        turn: "blue",
+        round: 4,
+    };
+
+    // Set example gold balances similar to the screenshot and keep base productions.
+    const users: typeof gameWithTiles.users = {
+        ...gameWithTiles.users,
+        green: {
+            ...gameWithTiles.users.green,
+            resources: { ...gameWithTiles.users.green.resources, dollar: 16 },
+            production: baseProductions(),
+        },
+        orange: {
+            ...gameWithTiles.users.orange,
+            resources: { ...gameWithTiles.users.orange.resources, dollar: 11 },
+            production: baseProductions(),
+        },
+        blue: {
+            ...gameWithTiles.users.blue,
+            resources: { ...gameWithTiles.users.blue.resources, dollar: 6 },
+            production: baseProductions(),
+        },
+        red: {
+            ...gameWithTiles.users.red,
+            resources: { ...gameWithTiles.users.red.resources, dollar: 11 },
+            production: baseProductions(),
+        },
+    };
+
+    return {
+        ...gameWithTiles,
+        users,
+    };
+}

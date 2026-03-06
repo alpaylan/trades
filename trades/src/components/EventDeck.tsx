@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useGlobalContext } from "../logic/State";
 
 const SQUARE_COLORS = ["#43a047", "#e53935", "#ffc107", "#1e88e5"];
@@ -27,7 +28,8 @@ const EVENT_CARD_IMAGES: Record<
 	| "speculative_investment"
 	| "black_market_scams"
 	| "merchants_lottery"
-	| "international_trade_treaty",
+	| "international_trade_treaty"
+	| "economic_isolation",
 	string
 > = {
 	end_of_phase_1: "/assets/event-card-end-of-phase-1.png",
@@ -51,10 +53,20 @@ const EVENT_CARD_IMAGES: Record<
 	black_market_scams: "/assets/event-card-black-market-scams.png",
 	merchants_lottery: "/assets/event-card-merchants-lottery.png",
 	international_trade_treaty: "/assets/event-card-international-trade-treaty.png",
+	economic_isolation: "/assets/event-card-economic-isolation.png",
+};
+
+const CARD_TITLES: Record<string, string> = {
+	international_trade_treaty: "International Trade Treaty",
+	economic_isolation: "Economic Isolation",
 };
 
 export default function EventDeck() {
 	const { state, dispatch } = useGlobalContext();
+	const [thumbnailImageError, setThumbnailImageError] = useState(false);
+	useEffect(() => {
+		setThumbnailImageError(false);
+	}, [state.lastDrawnEventCard]);
 	const remaining = state.eventCardsRemaining;
 	const isLow = remaining <= 5 && remaining > 0;
 	const lastDrawn = state.lastDrawnEventCard;
@@ -63,10 +75,12 @@ export default function EventDeck() {
 			? "/assets/event-card-robin-hoods-toll.png"
 			: lastDrawn === "reversed_currents"
 				? "/assets/event-card-reversed-currents.png"
-				: lastDrawn && lastDrawn in EVENT_CARD_IMAGES
-					? EVENT_CARD_IMAGES[lastDrawn as keyof typeof EVENT_CARD_IMAGES]
-					: undefined;
-	const showLastCard = !!(lastDrawn && lastDrawn !== "blank" && imageSrc);
+				: lastDrawn === "economic_isolation"
+					? "/assets/event-card-economic-isolation.png"
+					: lastDrawn && lastDrawn in EVENT_CARD_IMAGES
+						? EVENT_CARD_IMAGES[lastDrawn as keyof typeof EVENT_CARD_IMAGES]
+						: undefined;
+	const showLastCard = !!(lastDrawn && lastDrawn !== "blank");
 
 	return (
 		<div
@@ -100,15 +114,51 @@ export default function EventDeck() {
 						flexShrink: 0,
 					}}
 				>
-					<img
-						src={imageSrc}
-						alt={`Event card: ${lastDrawn.replace(/_/g, " ")}`}
-						style={{
-							width: "100%",
-							height: "100%",
-							objectFit: "cover",
-						}}
-					/>
+					{imageSrc && !thumbnailImageError ? (
+						<img
+							src={imageSrc}
+							alt={`Event card: ${lastDrawn?.replace(/_/g, " ") ?? ""}`}
+							onError={() => setThumbnailImageError(true)}
+							style={{
+								width: "100%",
+								height: "100%",
+								objectFit: "cover",
+							}}
+						/>
+					) : lastDrawn && CARD_TITLES[lastDrawn] ? (
+						<div
+							style={{
+								width: "100%",
+								height: "100%",
+								display: "flex",
+								alignItems: "center",
+								justifyContent: "center",
+								padding: 4,
+								background: "linear-gradient(180deg, #f5f0e6 0%, #e8e0d0 100%)",
+								fontSize: 8,
+								fontWeight: 600,
+								textAlign: "center",
+								lineHeight: 1.2,
+								color: "#1a1a1a",
+							}}
+						>
+							{CARD_TITLES[lastDrawn].replace(/ /g, "\n")}
+						</div>
+					) : (
+						<div
+							style={{
+								width: "100%",
+								height: "100%",
+								display: "flex",
+								alignItems: "center",
+								justifyContent: "center",
+								fontSize: 10,
+								color: "#888",
+							}}
+						>
+							?
+						</div>
+					)}
 				</button>
 			)}
 			<div style={{ position: "relative" }}>

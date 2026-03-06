@@ -8,7 +8,6 @@ import {
 	CITY_HALLS,
 	game,
 	isRoadEligibleForCustoms,
-	next,
 	ROAD_ROTATIONS,
 	RESOURCE_TYPES,
 	type Game,
@@ -20,6 +19,7 @@ import {
 	type Tilable,
 	toKey,
 	zero,
+	exampleBoardScenarioGame,
 } from "./Game";
 
 export type TurnDirection = "cw" | "ccw";
@@ -133,6 +133,27 @@ const allInternationalTradeTreatyPopupShown = (): Record<TileOwner, boolean> => 
 	red: true,
 });
 
+const initialEconomicIsolationResult = (): Record<TileOwner, "none" | "paid" | "production_reduced"> => ({
+	green: "none",
+	orange: "none",
+	blue: "none",
+	red: "none",
+});
+
+const initialEconomicIsolationPopupShown = (): Record<TileOwner, boolean> => ({
+	green: false,
+	orange: false,
+	blue: false,
+	red: false,
+});
+
+const allEconomicIsolationPopupShown = (): Record<TileOwner, boolean> => ({
+	green: true,
+	orange: true,
+	blue: true,
+	red: true,
+});
+
 const ACTION_TILE_KEYS: TileKey[] = ACTION_TYPES.map((a) => `action:${a}` as TileKey);
 
 const initialBlackMarketScamsRemoved = (): Record<TileOwner, { key: TileKey; count: number }[]> => ({
@@ -178,14 +199,16 @@ export type State = {
 	endedThisRound: Record<TileOwner, boolean>;
 	purchasedThisTurn: PurchasedThisTurn;
 	eventCardsRemaining: number;
+	/** Shuffled deck of 25 event cards; end_of_phase_1 is in a random position among the last 5. */
+	eventCardDeck: readonly State["eventCardContent"][];
 	eventCardTriggerPosition: number;
 	noRoadTestPosition: 1 | 2 | 3;
 	showEventCard: boolean;
-	eventCardContent: "blank" | "end_of_phase_1" | "no_road" | "black_friday" | "gift" | "lucky_streak" | "labor_revolt" | "rapid_inflation" | "structural_collapse" | "safe_passage" | "broken_logistics" | "business_as_usual" | "extended_timeline" | "bureaucratic_delay" | "logistic_breakthrough" | "market_holiday" | "supply_chain_shortage" | "material_surplus" | "speculative_investment" | "black_market_scams" | "merchants_lottery" | "robin_hoods_toll" | "reversed_currents" | "time_skip" | "international_trade_treaty";
+	eventCardContent: "blank" | "end_of_phase_1" | "no_road" | "black_friday" | "gift" | "lucky_streak" | "labor_revolt" | "rapid_inflation" | "structural_collapse" | "safe_passage" | "broken_logistics" | "business_as_usual" | "extended_timeline" | "bureaucratic_delay" | "logistic_breakthrough" | "market_holiday" | "supply_chain_shortage" | "material_surplus" | "speculative_investment" | "black_market_scams" | "merchants_lottery" | "robin_hoods_toll" | "reversed_currents" | "time_skip" | "international_trade_treaty" | "economic_isolation";
 	pendingRoundEnd: boolean;
-	activeEventEffects: { noRoad: boolean; blackFriday: boolean; gift: boolean; luckyStreak: boolean; laborRevolt: boolean; rapidInflation: boolean; safePassage: boolean; brokenLogistics: boolean; bureaucraticDelay: boolean; logisticBreakthrough: boolean; marketHoliday: boolean; supplyChainShortage: boolean; materialSurplus: boolean; speculativeInvestment: boolean; blackMarketScams: boolean; merchantsLottery: boolean; robinHoodsToll: boolean; reversedCurrent: boolean; internationalTradeTreaty: boolean };
+	activeEventEffects: { noRoad: boolean; blackFriday: boolean; gift: boolean; luckyStreak: boolean; laborRevolt: boolean; rapidInflation: boolean; safePassage: boolean; brokenLogistics: boolean; bureaucraticDelay: boolean; logisticBreakthrough: boolean; marketHoliday: boolean; supplyChainShortage: boolean; materialSurplus: boolean; speculativeInvestment: boolean; blackMarketScams: boolean; merchantsLottery: boolean; robinHoodsToll: boolean; reversedCurrent: boolean; internationalTradeTreaty: boolean; economicIsolation: boolean };
 	giftReceivedThisRound: Record<TileOwner, boolean>;
-	lastDrawnEventCard: "blank" | "end_of_phase_1" | "no_road" | "black_friday" | "gift" | "lucky_streak" | "labor_revolt" | "rapid_inflation" | "structural_collapse" | "safe_passage" | "broken_logistics" | "business_as_usual" | "extended_timeline" | "bureaucratic_delay" | "logistic_breakthrough" | "market_holiday" | "supply_chain_shortage" | "material_surplus" | "speculative_investment" | "black_market_scams" | "merchants_lottery" | "robin_hoods_toll" | "reversed_currents" | "time_skip" | "international_trade_treaty" | null;
+	lastDrawnEventCard: "blank" | "end_of_phase_1" | "no_road" | "black_friday" | "gift" | "lucky_streak" | "labor_revolt" | "rapid_inflation" | "structural_collapse" | "safe_passage" | "broken_logistics" | "business_as_usual" | "extended_timeline" | "bureaucratic_delay" | "logistic_breakthrough" | "market_holiday" | "supply_chain_shortage" | "material_surplus" | "speculative_investment" | "black_market_scams" | "merchants_lottery" | "robin_hoods_toll" | "reversed_currents" | "time_skip" | "international_trade_treaty" | "economic_isolation" | null;
 	/** Per-player list of action tiles removed by Black Market Scams (for popup). */
 	blackMarketScamsRemoved: Record<TileOwner, { key: TileKey; count: number }[]>;
 	/** Per-player: has the Black Market Scams loss popup been shown this round? */
@@ -202,6 +225,12 @@ export type State = {
 	internationalTradeTreatyBonus: Record<TileOwner, number>;
 	/** Per-player: has the International Trade Treaty popup been shown this round? */
 	internationalTradeTreatyPopupShown: Record<TileOwner, boolean>;
+	/** Per-player: Economic Isolation result – "paid" = paid 3 Gold, "production_reduced" = could not pay, production −1, "none" = had trade route. */
+	economicIsolationResult: Record<TileOwner, "none" | "paid" | "production_reduced">;
+	/** Per-player: has the Economic Isolation popup been shown this round? */
+	economicIsolationPopupShown: Record<TileOwner, boolean>;
+	/** True when the currently shown card was drawn by Time Skip (so we must consume it on dismiss). */
+	cardShownByTimeSkip: boolean;
 	lastDrawnWasExtendedTimeline: boolean;
 	speculativeInvestmentResolved: Record<TileOwner, boolean>;
 	logisticBreakthroughPicks: number;
@@ -212,8 +241,75 @@ export type State = {
 
 const randomTriggerPosition = () => Math.floor(Math.random() * 5) + 1;
 
+const ALL_EVENT_CARDS_EXCEPT_END_OF_PHASE: State["eventCardContent"][] = [
+	"black_friday",
+	"extended_timeline",
+	"international_trade_treaty",
+	"economic_isolation",
+	"time_skip",
+	"reversed_currents",
+	"robin_hoods_toll",
+	"merchants_lottery",
+	"black_market_scams",
+	"speculative_investment",
+	"no_road",
+	"labor_revolt",
+	"gift",
+	"structural_collapse",
+	"lucky_streak",
+	"safe_passage",
+	"rapid_inflation",
+	"business_as_usual",
+	"broken_logistics",
+	"bureaucratic_delay",
+	"logistic_breakthrough",
+	"market_holiday",
+	"supply_chain_shortage",
+	"material_surplus",
+];
+
+function shuffleArray<T>(arr: T[]): T[] {
+	const out = arr.slice();
+	for (let i = out.length - 1; i > 0; i--) {
+		const j = Math.floor(Math.random() * (i + 1));
+		[out[i], out[j]] = [out[j], out[i]];
+	}
+	return out;
+}
+
+/** Build a deck of 25 event cards: 24 shuffled, end_of_phase_1 in a random position among the last 5. */
+function buildEventCardDeck(): readonly State["eventCardContent"][] {
+	const shuffled = shuffleArray(ALL_EVENT_CARDS_EXCEPT_END_OF_PHASE);
+	const endOfPhaseSlot = 20 + Math.floor(Math.random() * 5);
+	const deck: State["eventCardContent"][] = [];
+	let j = 0;
+	for (let i = 0; i < 25; i++) {
+		if (i === endOfPhaseSlot) {
+			deck.push("end_of_phase_1");
+		} else {
+			deck.push(shuffled[j++]);
+		}
+	}
+	return deck;
+}
+
+const createInitialGame = (): Game => {
+	if (typeof window !== "undefined") {
+		try {
+			const params = new URLSearchParams(window.location.search);
+			const scenario = params.get("scenario");
+			if (scenario === "example-board") {
+				return exampleBoardScenarioGame();
+			}
+		} catch {
+			// Ignore URL parsing issues and fall back to default game.
+		}
+	}
+	return game();
+};
+
 export const initialState = (): State => ({
-	game: game(),
+	game: createInitialGame(),
 	selected: null,
 	pendingRotation: null,
 	pendingTurn: null,
@@ -222,12 +318,13 @@ export const initialState = (): State => ({
 	endedThisRound: initialEndedThisRound(),
 	purchasedThisTurn: initialPurchasedThisTurn(),
 	eventCardsRemaining: 25,
+	eventCardDeck: buildEventCardDeck(),
 	eventCardTriggerPosition: randomTriggerPosition(),
 	noRoadTestPosition: (Math.floor(Math.random() * 3) + 1) as 1 | 2 | 3,
 	showEventCard: false,
 	eventCardContent: "blank",
 	pendingRoundEnd: false,
-	activeEventEffects: { noRoad: false, blackFriday: false, gift: false, luckyStreak: false, laborRevolt: false, rapidInflation: false, safePassage: false, brokenLogistics: false, bureaucraticDelay: false, logisticBreakthrough: false, marketHoliday: false, supplyChainShortage: false, materialSurplus: false, speculativeInvestment: false, blackMarketScams: false, merchantsLottery: false, robinHoodsToll: false, reversedCurrent: false },
+	activeEventEffects: { noRoad: false, blackFriday: false, gift: false, luckyStreak: false, laborRevolt: false, rapidInflation: false, safePassage: false, brokenLogistics: false, bureaucraticDelay: false, logisticBreakthrough: false, marketHoliday: false, supplyChainShortage: false, materialSurplus: false, speculativeInvestment: false, blackMarketScams: false, merchantsLottery: false, robinHoodsToll: false, reversedCurrent: false, internationalTradeTreaty: false, economicIsolation: false },
 	giftReceivedThisRound: initialGiftReceivedThisRound(),
 	lastDrawnEventCard: null,
 	blackMarketScamsRemoved: initialBlackMarketScamsRemoved(),
@@ -238,6 +335,9 @@ export const initialState = (): State => ({
 	robinHoodTollPopupShown: initialRobinHoodTollPopupShown(),
 	internationalTradeTreatyBonus: initialInternationalTradeTreatyBonus(),
 	internationalTradeTreatyPopupShown: initialInternationalTradeTreatyPopupShown(),
+	economicIsolationResult: initialEconomicIsolationResult(),
+	economicIsolationPopupShown: initialEconomicIsolationPopupShown(),
+	cardShownByTimeSkip: false,
 	lastDrawnWasExtendedTimeline: false,
 	logisticBreakthroughPicks: 0,
 	speculativeInvestmentResolved: initialSpeculativeInvestmentResolved(),
@@ -266,6 +366,7 @@ export type Action =
 	| { type: "DISMISS_MERCHANTS_LOTTERY_POPUP" }
 	| { type: "DISMISS_ROBIN_HOODS_TOLL_POPUP" }
 	| { type: "DISMISS_INTERNATIONAL_TRADE_TREATY_POPUP" }
+	| { type: "DISMISS_ECONOMIC_ISOLATION_POPUP" }
 	| { type: "SHOW_EVENT_CARD_PREVIEW" }
 	| { type: "START_DICE_ROLL"; payload: { price: number } }
 	| { type: "FINISH_DICE_ROLL"; payload: { tile: Tilable | null } }
@@ -282,6 +383,7 @@ export const UI_ONLY_ACTION_TYPES: Action["type"][] = [
 	"DISMISS_MERCHANTS_LOTTERY_POPUP",
 	"DISMISS_ROBIN_HOODS_TOLL_POPUP",
 	"DISMISS_INTERNATIONAL_TRADE_TREATY_POPUP",
+	"DISMISS_ECONOMIC_ISOLATION_POPUP",
 ];
 
 export const AUTHORITATIVE_ACTION_TYPES: Action["type"][] = [
@@ -419,60 +521,12 @@ export const reducer = (state: State, action: Action): State => {
 				const baseGame = state.game;
 				const newEventCards = Math.max(0, state.eventCardsRemaining - 1);
 				const drawCard = state.eventCardsRemaining > 0;
-				// Use the current remaining count to pick the *next* card in sequence.
-				const cardIndex = 26 - state.eventCardsRemaining;
+				const deckIndex = 25 - state.eventCardsRemaining;
 				const eventCardContent: State["eventCardContent"] =
-					!drawCard
-						? "blank"
-						: cardIndex === 1
-							? "black_friday"
-							: cardIndex === 2
-								? "extended_timeline"
-								: cardIndex === 3
-									? "international_trade_treaty"
-									: cardIndex === 4
-										? "time_skip"
-										: cardIndex === 5
-											? "reversed_currents"
-											: cardIndex === 6
-												? "robin_hoods_toll"
-												: cardIndex === 7
-													? "merchants_lottery"
-													: cardIndex === 8
-														? "black_market_scams"
-														: cardIndex === 9
-															? "speculative_investment"
-															: cardIndex === 10
-																? "no_road"
-																: cardIndex === 11
-																	? "labor_revolt"
-																	: cardIndex === 12
-																		? "gift"
-																		: cardIndex === 13
-																			? "structural_collapse"
-																			: cardIndex === 14
-																				? "lucky_streak"
-																				: cardIndex === 15
-																					? "safe_passage"
-																					: cardIndex === 16
-																						? "rapid_inflation"
-																						: cardIndex === 17
-																							? "business_as_usual"
-																							: cardIndex === 18
-																								? "broken_logistics"
-																								: cardIndex === 19
-																									? "bureaucratic_delay"
-																									: cardIndex === 20
-																										? "logistic_breakthrough"
-																										: cardIndex === 21
-																											? "market_holiday"
-																											: cardIndex === 22
-																												? "supply_chain_shortage"
-																												: cardIndex === 23
-																													? "material_surplus"
-																													: newEventCards === state.eventCardTriggerPosition
-																														? "end_of_phase_1"
-																														: "blank";
+					!drawCard ? "blank" : state.eventCardDeck[deckIndex] ?? "blank";
+				// Geçici sabit liste (inactive – artık eventCardDeck kullanılıyor):
+				// const cardIndex = 26 - state.eventCardsRemaining;
+				// eventCardContent = cardIndex===1?"black_friday": cardIndex===2?"extended_timeline": ... : newEventCards===state.eventCardTriggerPosition?"end_of_phase_1":"blank";
 
 				if (!drawCard) {
 					const nextRound = (baseGame.round ?? 1) + 1;
@@ -509,7 +563,8 @@ export const reducer = (state: State, action: Action): State => {
 						endedThisRound: initialEndedThisRound(),
 						purchasedThisTurn: initialPurchasedThisTurn(),
 						eventCardsRemaining: newEventCards,
-						activeEventEffects: { noRoad: false, blackFriday: false, gift: false, luckyStreak: false, laborRevolt: false, rapidInflation: false, safePassage: false, brokenLogistics: false, bureaucraticDelay: false, logisticBreakthrough: false, marketHoliday: false, supplyChainShortage: false, materialSurplus: false, speculativeInvestment: false, blackMarketScams: false, merchantsLottery: false, robinHoodsToll: false, reversedCurrent: false },
+						cardShownByTimeSkip: false,
+						activeEventEffects: { noRoad: false, blackFriday: false, gift: false, luckyStreak: false, laborRevolt: false, rapidInflation: false, safePassage: false, brokenLogistics: false, bureaucraticDelay: false, logisticBreakthrough: false, marketHoliday: false, supplyChainShortage: false, materialSurplus: false, speculativeInvestment: false, blackMarketScams: false, merchantsLottery: false, robinHoodsToll: false, reversedCurrent: false, internationalTradeTreaty: false, economicIsolation: false },
 						giftReceivedThisRound: initialGiftReceivedThisRound(),
 						speculativeInvestmentResolved: initialSpeculativeInvestmentResolved(),
 						history: historyState,
@@ -1013,7 +1068,7 @@ export const reducer = (state: State, action: Action): State => {
 			const baseGame = state.game;
 
 			// Special handling: Time Skip – skip production and actions, jump straight
-			// to the next round and immediately draw a new event card.
+			// to the next round and immediately draw a new event card (without consuming it yet).
 			if (state.eventCardContent === "time_skip") {
 				const nextRound = (baseGame.round ?? 1) + 1;
 				const roundStarter = TILE_OWNERS[(nextRound - 1) % TILE_OWNERS.length];
@@ -1028,59 +1083,11 @@ export const reducer = (state: State, action: Action): State => {
 					};
 				}
 
-				const newEventCards = Math.max(0, state.eventCardsRemaining - 1);
+				// Time Skip kartı END_TURN'da zaten tüketildi; bir sonraki kartı gösteriyoruz, henüz tüketmiyoruz.
 				const drawCard = state.eventCardsRemaining > 0;
-				const cardIndex = 26 - state.eventCardsRemaining;
+				const nextDeckIndex = 25 - state.eventCardsRemaining;
 				const eventCardContent: State["eventCardContent"] =
-					!drawCard
-						? "blank"
-						: cardIndex === 1
-							? "black_friday"
-							: cardIndex === 2
-								? "extended_timeline"
-								: cardIndex === 3
-									? "time_skip"
-									: cardIndex === 4
-										? "reversed_currents"
-										: cardIndex === 5
-											? "robin_hoods_toll"
-											: cardIndex === 6
-												? "merchants_lottery"
-												: cardIndex === 7
-													? "black_market_scams"
-													: cardIndex === 8
-														? "speculative_investment"
-														: cardIndex === 9
-															? "no_road"
-															: cardIndex === 10
-																? "labor_revolt"
-																: cardIndex === 11
-																	? "gift"
-																	: cardIndex === 12
-																		? "structural_collapse"
-																		: cardIndex === 13
-																			? "lucky_streak"
-																			: cardIndex === 14
-																				? "safe_passage"
-																				: cardIndex === 15
-																					? "rapid_inflation"
-																					: cardIndex === 16
-																						? "business_as_usual"
-																						: cardIndex === 17
-																							? "broken_logistics"
-																							: cardIndex === 18
-																								? "bureaucratic_delay"
-																								: cardIndex === 19
-																									? "logistic_breakthrough"
-																									: cardIndex === 20
-																										? "market_holiday"
-																										: cardIndex === 21
-																											? "supply_chain_shortage"
-																											: cardIndex === 22
-																												? "material_surplus"
-																												: newEventCards === state.eventCardTriggerPosition
-																													? "end_of_phase_1"
-																													: "blank";
+					!drawCard ? "blank" : nextDeckIndex < 25 ? state.eventCardDeck[nextDeckIndex] : "blank";
 
 				return {
 					...state,
@@ -1099,7 +1106,8 @@ export const reducer = (state: State, action: Action): State => {
 					randomTilePurchasedThisTurn: false,
 					endedThisRound: initialEndedThisRound(),
 					purchasedThisTurn: initialPurchasedThisTurn(),
-					eventCardsRemaining: newEventCards,
+					eventCardsRemaining: state.eventCardsRemaining,
+					cardShownByTimeSkip: true,
 					showEventCard: drawCard,
 					eventCardContent,
 					pendingRoundEnd: drawCard,
@@ -1122,6 +1130,8 @@ export const reducer = (state: State, action: Action): State => {
 						merchantsLottery: false,
 						robinHoodsToll: false,
 						reversedCurrent: false,
+						internationalTradeTreaty: false,
+						economicIsolation: false,
 					},
 					giftReceivedThisRound: initialGiftReceivedThisRound(),
 					lastDrawnEventCard: eventCardContent,
@@ -1148,11 +1158,13 @@ export const reducer = (state: State, action: Action): State => {
 			const merchantsLotteryActive = effectiveCard === "merchants_lottery";
 			const robinHoodsTollActive = effectiveCard === "robin_hoods_toll";
 			const internationalTradeTreatyActive = effectiveCard === "international_trade_treaty";
+			const economicIsolationActive = effectiveCard === "economic_isolation";
 			const blackMarketScamsRemoved: Record<TileOwner, { key: TileKey; count: number }[]> = initialBlackMarketScamsRemoved();
 			const merchantsLotteryResult: Record<TileOwner, number> = initialMerchantsLotteryResult();
 			const robinHoodTollDelta: Record<TileOwner, number> = initialRobinHoodTollDelta();
 			const internationalTradeTreatyBonus: Record<TileOwner, number> = initialInternationalTradeTreatyBonus();
-			const tradeRoutes = internationalTradeTreatyActive ? findTradeRoutes(baseGame) : [];
+			const tradeRoutes = internationalTradeTreatyActive || economicIsolationActive ? findTradeRoutes(baseGame) : [];
+			const economicIsolationResult: Record<TileOwner, "none" | "paid" | "production_reduced"> = initialEconomicIsolationResult();
 
 			if (robinHoodsTollActive) {
 				const wealthy: TileOwner[] = [];
@@ -1177,13 +1189,7 @@ export const reducer = (state: State, action: Action): State => {
 
 			for (const owner of TILE_OWNERS) {
 				const user = baseGame.users[owner];
-				const production = calculateUserProduction(baseGame, owner);
-				const baseAddedResources = RESOURCE_TYPES.reduce((acc, resource) => {
-					const base = production[resource];
-					const effective = structuralCollapseActive ? 0 : laborRevoltActive ? Math.floor(base * 0.6) : base;
-					acc[resource] = user.resources[resource] + effective;
-					return acc;
-				}, zero());
+				let production = calculateUserProduction(baseGame, owner);
 				const tollDelta = robinHoodsTollActive ? robinHoodTollDelta[owner] : 0;
 				let tradeBonus = 0;
 				if (internationalTradeTreatyActive) {
@@ -1193,9 +1199,30 @@ export const reducer = (state: State, action: Action): State => {
 					tradeBonus = routesForOwner.length * 5;
 					internationalTradeTreatyBonus[owner] = tradeBonus;
 				}
+				let isolationDollarDelta = 0;
+				if (economicIsolationActive) {
+					const routesForOwner = tradeRoutes.filter(
+						(route) => route.between[0] === owner || route.between[1] === owner,
+					);
+					if (routesForOwner.length === 0) {
+						if (user.resources.dollar >= 3) {
+							isolationDollarDelta = -3;
+							economicIsolationResult[owner] = "paid";
+						} else {
+							production = { ...production, dollar: Math.max(0, production.dollar - 1) };
+							economicIsolationResult[owner] = "production_reduced";
+						}
+					}
+				}
+				const baseAddedResources = RESOURCE_TYPES.reduce((acc, resource) => {
+					const base = production[resource];
+					const effective = structuralCollapseActive ? 0 : laborRevoltActive ? Math.floor(base * 0.6) : base;
+					acc[resource] = user.resources[resource] + effective;
+					return acc;
+				}, zero());
 				const addedResources = {
 					...baseAddedResources,
-					dollar: baseAddedResources.dollar + tollDelta + tradeBonus,
+					dollar: baseAddedResources.dollar + tollDelta + tradeBonus + isolationDollarDelta,
 				};
 				let nextInventory = user.inventory;
 				if (blackMarketScamsActive) {
@@ -1266,7 +1293,12 @@ export const reducer = (state: State, action: Action): State => {
 					robinHoodsToll: state.eventCardContent === "robin_hoods_toll",
 					reversedCurrent: state.eventCardContent === "reversed_currents",
 					internationalTradeTreaty: state.eventCardContent === "international_trade_treaty",
+					economicIsolation: state.eventCardContent === "economic_isolation",
 				};
+
+			const newEventCardsAfterDismiss = state.cardShownByTimeSkip
+				? Math.max(0, state.eventCardsRemaining - 1)
+				: state.eventCardsRemaining;
 
 			return {
 				...state,
@@ -1285,6 +1317,8 @@ export const reducer = (state: State, action: Action): State => {
 				randomTilePurchasedThisTurn: false,
 				endedThisRound: initialEndedThisRound(),
 				purchasedThisTurn: initialPurchasedThisTurn(),
+				eventCardsRemaining: newEventCardsAfterDismiss,
+				cardShownByTimeSkip: false,
 				showEventCard: false,
 				eventCardContent: "blank",
 				pendingRoundEnd: false,
@@ -1302,6 +1336,8 @@ export const reducer = (state: State, action: Action): State => {
 				robinHoodTollPopupShown: robinHoodsTollActive ? initialRobinHoodTollPopupShown() : allRobinHoodTollPopupShown(),
 				internationalTradeTreatyBonus: internationalTradeTreatyActive ? internationalTradeTreatyBonus : initialInternationalTradeTreatyBonus(),
 				internationalTradeTreatyPopupShown: internationalTradeTreatyActive ? initialInternationalTradeTreatyPopupShown() : allInternationalTradeTreatyPopupShown(),
+				economicIsolationResult: economicIsolationActive ? economicIsolationResult : initialEconomicIsolationResult(),
+				economicIsolationPopupShown: economicIsolationActive ? initialEconomicIsolationPopupShown() : allEconomicIsolationPopupShown(),
 				history: historyState,
 			};
 		})
@@ -1333,6 +1369,14 @@ export const reducer = (state: State, action: Action): State => {
 			...state,
 			internationalTradeTreatyPopupShown: {
 				...state.internationalTradeTreatyPopupShown,
+				[state.game.turn]: true,
+			},
+			history: historyState,
+		}))
+		.with({ type: "DISMISS_ECONOMIC_ISOLATION_POPUP" }, () => ({
+			...state,
+			economicIsolationPopupShown: {
+				...state.economicIsolationPopupShown,
 				[state.game.turn]: true,
 			},
 			history: historyState,

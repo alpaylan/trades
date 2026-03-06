@@ -166,6 +166,10 @@ export default function Controls() {
 		tradeTreatyActive &&
 		tradeTreatyBonus > 0 &&
 		!state.internationalTradeTreatyPopupShown?.[turn];
+	const economicIsolationActive = state.activeEventEffects?.economicIsolation ?? false;
+	const economicIsolationResult = state.economicIsolationResult?.[turn] ?? "none";
+	const showEconomicIsolationPopup =
+		economicIsolationActive && !state.economicIsolationPopupShown?.[turn];
 	const actionsUsed = state.actionsUsedThisTurn ?? 0;
 	const actionsLeft = Math.max(0, 2 - actionsUsed);
 	const giftPending =
@@ -457,6 +461,61 @@ export default function Controls() {
 						<button
 							type="button"
 							onClick={() => dispatch({ type: "DISMISS_INTERNATIONAL_TRADE_TREATY_POPUP" })}
+							style={{
+								padding: "8px 24px",
+								borderRadius: 8,
+								border: "none",
+								background: "#2e7d32",
+								color: "#fff",
+								cursor: "pointer",
+								fontWeight: 600,
+								fontSize: 14,
+							}}
+						>
+							OK
+						</button>
+					</div>
+				</div>
+			)}
+			{showEconomicIsolationPopup && (
+				<div
+					style={{
+						position: "fixed",
+						inset: 0,
+						zIndex: 10000,
+						display: "flex",
+						alignItems: "center",
+						justifyContent: "center",
+						backgroundColor: "rgba(0,0,0,0.55)",
+					}}
+					role="dialog"
+					aria-modal="true"
+					aria-label="Economic Isolation result"
+				>
+					<div
+						style={{
+							background: "#fff",
+							borderRadius: 14,
+							padding: "24px 32px",
+							boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+							textAlign: "center",
+							minWidth: 280,
+							maxWidth: 380,
+						}}
+					>
+						<p style={{ margin: "0 0 8px", fontWeight: 700, fontSize: 18, color: "#1a1a1a" }}>
+							Economic Isolation
+						</p>
+						<p style={{ margin: "0 0 16px", fontSize: 14, color: "#333" }}>
+							{economicIsolationResult === "none"
+								? "You have at least one completed trade route with a neighbor. No penalty."
+								: economicIsolationResult === "paid"
+									? "You had no completed trade route. You paid 3 Gold."
+									: "You had no completed trade route and could not pay 3 Gold. Your Gold production was reduced by 1."}
+						</p>
+						<button
+							type="button"
+							onClick={() => dispatch({ type: "DISMISS_ECONOMIC_ISOLATION_POPUP" })}
 							style={{
 								padding: "8px 24px",
 								borderRadius: 8,
