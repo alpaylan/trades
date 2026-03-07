@@ -3,7 +3,9 @@ import {
 	type AccessibleDirections,
 	accessibleDirections,
 	type AccessibleTile,
+	canPlaceWell,
 	getCustomsGateDirection,
+	hasPlayerSelectedWell,
 	isRoadEligibleForCustoms,
 	type TileOwner,
 	CITY_HALLS,
@@ -56,14 +58,18 @@ function notInCenter(accessible: AccessibleTile): boolean {
 export default function Tile({
 	tile,
 	accessible,
+	canalAccessible,
 }: {
 	tile: TileType;
 	accessible: AccessibleTile | null;
+	canalAccessible: AccessibleTile | null;
 }) {
 	const { state, dispatch } = useGlobalContext();
 	const current = state.game.turn;
 	const actionsUsed = state.actionsUsedThisTurn ?? 0;
 	const ended = state.endedThisRound[current];
+	const wellSelectionMode =
+		state.game.round === 1 && !hasPlayerSelectedWell(state.game, current);
 	const canStartAction = actionsUsed < 2 && !ended;
 	const purchasedForUser = state.purchasedThisTurn[current] ?? {};
 	const userInventory = state.game.users[current]?.inventory ?? {};
@@ -84,13 +90,24 @@ export default function Tile({
 		);
 	}
 
+	// Well selection (round 1): only empty tiles in own region are clickable
+	const canClickWell =
+		wellSelectionMode &&
+		tile.owned &&
+		tile.owner === current &&
+		canPlaceWell(state.game, current, tile.x, tile.y);
+
 	const tooltip = match(tile.content)
 		.with({ type_: "empty" }, () =>
-			state.selected?.type_ === "road" &&
-			accessible &&
-			state.activeEventEffects?.noRoad
-				? "Road placement disabled (No Road event)"
-				: `Empty tile (owner: ${tile.owner})`,
+			canClickWell
+				? "Select as your water well"
+				: state.selected?.type_ === "canal" && canalAccessible
+				? "Place water canal"
+				: state.selected?.type_ === "road" &&
+						accessible &&
+						state.activeEventEffects?.noRoad
+					? "Road placement disabled (No Road event)"
+					: `Empty tile (owner: ${tile.owner})`,
 		)
 		.with({ type_: "road" }, (content) =>
 			state.selected?.type_ === "action" &&
@@ -108,6 +125,8 @@ export default function Tile({
 						(content.toll ? " - toll enabled" : "") +
 						(content.customs ? " - customs gate" : ""),
 		)
+		.with({ type_: "well" }, () => "Water well")
+		.with({ type_: "canal" }, (content) => `Water canal (${content.canal})`)
 		.with({ type_: "hall" }, (content) => `City hall (level ${content.level})`)
 		.with(
 			{ type_: "production" },
@@ -123,8 +142,38 @@ export default function Tile({
 			directionMatch(accessibleDirections(state.selected), accessible)) ||
 			(state.selected.type_ === "production" && notInCenter(accessible)));
 
+	const isStraightCanalSelected =
+		state.selected?.type_ === "canal" && state.selected.canal === "straight";
+	// Second cell for straight: same as road flow – from canalAccessible direction (which side canal reaches)
+	const straightSecondCell =
+		isStraightCanalSelected && state.selected && canalAccessible
+			? (() => {
+					const r = state.selected.rotation;
+					if (r === 0 || r === 180)
+						return canalAccessible.left
+							? { x: tile.x - 1, y: tile.y }
+							: { x: tile.x + 1, y: tile.y };
+					return canalAccessible.up
+						? { x: tile.x, y: tile.y - 1 }
+						: { x: tile.x, y: tile.y + 1 };
+				})()
+			: null;
+	const secondCellEmpty =
+		!straightSecondCell ||
+		(() => {
+			const t = state.game.tiles[`${straightSecondCell.y}-${straightSecondCell.x}`];
+			return t?.owned && t.owner === current && t.content.type_ === "empty";
+		})();
+	const canalAccessibleAndFree =
+		canalAccessible &&
+		state.selected?.type_ === "canal" &&
+		directionMatch(accessibleDirections(state.selected), canalAccessible) &&
+		(!isStraightCanalSelected || secondCellEmpty);
+
 	let canClick = false;
-	if (!ended && state.selected) {
+	if (canClickWell) {
+		canClick = true;
+	} else if (!ended && state.selected) {
 		if (canStartAction) {
 			canClick = true;
 		} else {
@@ -203,17 +252,32 @@ export default function Tile({
 		) {
 			canClick = false;
 		}
+		// Canal: require canalAccessibleAndFree and inventory
+		if (state.selected.type_ === "canal") {
+			canClick =
+				canClick &&
+				!!canalAccessibleAndFree &&
+				(userInventory[toKey(state.selected)] ?? 0) > 0;
+		}
 	}
 
 	return (
 		<button
-			className={`tile ${accessibleAndFree ? "pulsing" : ""}`}
+			className={`tile ${accessibleAndFree || canalAccessibleAndFree || canClickWell ? "pulsing" : ""}`}
 			type="button"
 			disabled={!canClick}
 			title={tooltip}
 			style={{
-				backgroundColor: tile.owner,
-				opacity: tile.content.type_ === "hall" ? 1 : 0.6,
+				backgroundColor:
+					tile.content.type_ === "canal"
+						? "#b0bec5"
+						: tile.owner,
+				opacity:
+					tile.content.type_ === "canal"
+						? 1
+						: tile.content.type_ === "hall"
+							? 1
+							: 0.6,
 				width: "32px",
 				height: "32px",
 				padding: "0px",
@@ -223,6 +287,17 @@ export default function Tile({
 			id={`tile-${tile.y}-${tile.x}`}
 			onClick={() => {
 				if (!canClick) {
+					return;
+				}
+				if (canClickWell) {
+					dispatch({ type: "SELECT_WELL", payload: { x: tile.x, y: tile.y } });
+					return;
+				}
+				if (canalAccessibleAndFree && state.selected?.type_ === "canal") {
+					dispatch({
+						type: "PLACE_TILE",
+						payload: { x: tile.x, y: tile.y, tile: state.selected },
+					});
 					return;
 				}
 				if (state.selected) {
@@ -278,9 +353,13 @@ export default function Tile({
 							}
 						})
 						.with(
-							P.union({ type_: "road" }, { type_: "production" }),
+							P.union(
+								{ type_: "road" },
+								{ type_: "production" },
+								{ type_: "canal" },
+							),
 							(tile_) => {
-								if (accessibleAndFree) {
+								if (accessibleAndFree || canalAccessibleAndFree) {
 									dispatch({
 										type: "PLACE_TILE",
 										payload: { x: tile.x, y: tile.y, tile: tile_ },
@@ -294,6 +373,64 @@ export default function Tile({
 		>
 			{match(tile.content)
 				.with({ type_: "empty" }, () => <></>)
+				.with({ type_: "well" }, () => (
+					<span
+						style={{
+							position: "absolute",
+							inset: 0,
+							display: "flex",
+							alignItems: "center",
+							justifyContent: "center",
+							pointerEvents: "none",
+						}}
+						aria-hidden="true"
+					>
+						<svg
+							width={28}
+							height={28}
+							viewBox="0 0 32 32"
+							style={{ display: "block" }}
+						>
+							{/* Stone well rim */}
+							<circle
+								cx="16"
+								cy="15"
+								r="10"
+								fill="#6d4c41"
+								stroke="#4e342e"
+								strokeWidth="1.2"
+							/>
+							{/* Inner wall / shaft */}
+							<circle
+								cx="16"
+								cy="15"
+								r="7"
+								fill="#455a64"
+								stroke="#37474f"
+								strokeWidth="0.6"
+							/>
+							{/* Water surface */}
+							<circle
+								cx="16"
+								cy="15"
+								r="5.2"
+								fill="#0277bd"
+							/>
+							<ellipse
+								cx="16"
+								cy="13.8"
+								rx="3.5"
+								ry="1.4"
+								fill="#4fc3f7"
+								opacity={0.7}
+							/>
+							{/* Wooden beam and bucket */}
+							<rect x="14" y="3" width="4" height="2.5" rx="0.5" fill="#5d4037" stroke="#3e2723" strokeWidth="0.5" />
+							<line x1="16" y1="5.5" x2="16" y2="9" stroke="#5d4037" strokeWidth="1.2" strokeLinecap="round" />
+							<path d="M14.2 9.2 L17.8 9.2 L17 11.5 L14 11.5 Z" fill="#6d4c41" stroke="#4e342e" strokeWidth="0.5" />
+						</svg>
+					</span>
+				))
 				.with({ type_: "road" }, (roadContent) => {
 					const gateDir = roadContent.customs
 						? getCustomsGateDirection(state.game, tile)
@@ -392,6 +529,61 @@ export default function Tile({
 								/>
 							) : null}
 						</>
+					);
+				})
+				.with({ type_: "canal" }, (content) => {
+					if (content.canal === "straight") {
+						const rot = content.rotation;
+						const isHorizontal = rot === 0 || rot === 180;
+						const neighborR = state.game.tiles[`${tile.y}-${tile.x + 1}`];
+						const neighborL = state.game.tiles[`${tile.y}-${tile.x - 1}`];
+						const neighborB = state.game.tiles[`${tile.y + 1}-${tile.x}`];
+						const neighborT = state.game.tiles[`${tile.y - 1}-${tile.x}`];
+						const same = (t: typeof tile) =>
+							t?.owned &&
+							t.content.type_ === "canal" &&
+							t.content.canal === "straight" &&
+							t.content.rotation === rot;
+						const isRight = isHorizontal && same(neighborL);
+						const isBottom = !isHorizontal && same(neighborT);
+						const showRightHalf = isHorizontal && isRight;
+						const showBottomHalf = !isHorizontal && isBottom;
+						return (
+							<span
+								style={{
+									position: "absolute",
+									inset: 0,
+									overflow: "hidden",
+									display: "flex",
+									alignItems: "center",
+									justifyContent: "center",
+									pointerEvents: "none",
+								}}
+							>
+								<img
+									src="/assets/canal-straight.svg"
+									alt="canal straight"
+									style={{
+										width: isHorizontal ? 64 : 32,
+										height: isHorizontal ? 32 : 64,
+										transform: isHorizontal
+											? `translateX(${showRightHalf ? -32 : 0}px)`
+											: `rotate(90deg) translateY(${showBottomHalf ? -32 : 0}px)`,
+									}}
+								/>
+							</span>
+						);
+					}
+					return (
+						<img
+							src={`/assets/canal-${content.canal}.svg`}
+							alt={`canal ${content.canal}`}
+							style={{
+								width: "32px",
+								height: "32px",
+								transform: `rotate(${content.rotation}deg)`,
+							}}
+						/>
 					);
 				})
 				.with({ type_: "production" }, (content) =>

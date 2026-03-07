@@ -51,10 +51,13 @@ export function owned(x: number, y: number, owner: TileOwner, content: TileConte
 }
 
 
-export type TileContent = RoadTile | ProductionTile | EmptyTile | CityHallTile
+export type TileContent = RoadTile | ProductionTile | EmptyTile | CityHallTile | WellTile | CanalTile
 
 export type EmptyTile = { type_: "empty" }
 export function empty(): EmptyTile { return { type_: "empty" } }
+
+export type WellTile = { type_: "well" }
+export function well(): WellTile { return { type_: "well" } }
 
 export type CityHallLevel = 0 | 1 | 2 | 3
 export type CityHallTile = { type_: "hall", level: CityHallLevel }
@@ -86,6 +89,18 @@ export function road(road: RoadType, rotation: RoadRotation): RoadTile {
     return { type_: "road", road, rotation, blocked: false, toll: 0, customs: false }
 }
 
+export const CANAL_TYPES = ["straight", "corner"] as const;
+export type CanalType = typeof CANAL_TYPES[number];
+
+export type CanalTile = {
+    type_: "canal"
+    canal: CanalType
+    rotation: RoadRotation
+}
+export function canal(canal: CanalType, rotation: RoadRotation): CanalTile {
+    return { type_: "canal", canal, rotation }
+}
+
 export type AccessibleDirections = {
     up: boolean,
     right: boolean,
@@ -97,9 +112,27 @@ export function directions(up: boolean, right: boolean, bottom: boolean, left: b
     return { up, right, bottom, left }
 }
 
-export function accessibleDirections(tile: RoadTile | CityHallTile): AccessibleDirections {
+export function accessibleDirections(tile: RoadTile | CityHallTile | CanalTile | WellTile): AccessibleDirections {
     switch (tile.type_) {
-        case "hall": return directions(true, true, true, true);
+        case "hall":
+        case "well":
+            return directions(true, true, true, true);
+        case "canal": {
+            const c = tile as CanalTile;
+            if (c.canal === "straight") {
+                if (c.rotation === 0 || c.rotation === 180)
+                    return directions(false, true, false, true);
+                return directions(true, false, true, false);
+            }
+            // corner
+            switch (c.rotation) {
+                case 0: return directions(true, false, false, true);
+                case 90: return directions(true, true, false, false);
+                case 180: return directions(false, true, true, false);
+                case 270: return directions(false, false, true, true);
+                default: throw Error("unreachable");
+            }
+        }
         case "road": {
             const road = tile as RoadTile;
             switch (road.road) {
@@ -186,11 +219,12 @@ export const actionPrices = {
     customs: 5
 };
 
-export type Tilable = RoadTile | ProductionTile | ActionTile
+export type Tilable = RoadTile | ProductionTile | ActionTile | CanalTile
 export type TileKey =
     | `action:${ActionType}`
     | `road:${RoadType}:${RoadRotation}`
     | `production:${ProductionType}:${ProductionLevel}`
+    | `canal:${CanalType}`
 
 export function toTilable(key: TileKey): Tilable {
     const [type, ...rest] = key.split(":");
@@ -198,6 +232,7 @@ export function toTilable(key: TileKey): Tilable {
         case "action": return action(rest[0] as ActionType);
         case "road": return road(rest[0] as RoadType, Number.parseInt(rest[1]) as unknown as RoadRotation);
         case "production": return production(rest[0] as ProductionType, Number.parseInt(rest[1]) as unknown as ProductionLevel);
+        case "canal": return canal(rest[0] as CanalType, 0);
         default: throw Error("unreachable")
     }
 }
@@ -206,6 +241,7 @@ export function toKey(tile: Tilable): TileKey {
         case "action": return `action:${tile.action}` as const;
         case "road": return `road:${tile.road}:${tile.rotation}` as const;
         case "production": return `production:${tile.production}:${tile.level}` as const;
+        case "canal": return `canal:${tile.canal}` as const;
         default: throw Error("unreachable")
     }
 }
@@ -221,6 +257,7 @@ export const ALL_TILE_KEYS: TileKey[] = [
             ...ROAD_ROTATIONS.map((rotation) => `road:${road}:${rotation}` as const),
         ]
     }),
+    ...CANAL_TYPES.map((c) => `canal:${c}` as const),
     ...RESOURCE_TYPES.flatMap((resource) => {
         return [
             ...PRODUCTION_LEVELS.map((level) => `production:${resource}:${level}` as const),
@@ -359,6 +396,15 @@ export const emptyDirections: AccessibleDirections = {
     left: false,
 };
 
+export function directionMatch(directions: AccessibleDirections, accessible: AccessibleTile): boolean {
+    return (
+        (directions.up && accessible.up) ||
+        (directions.right && accessible.right) ||
+        (directions.bottom && accessible.bottom) ||
+        (directions.left && accessible.left)
+    );
+}
+
 export function accessibleFreeTiles(game: Game, user: User): AccessibleTile[] {
     const startPoint = userCapital[user.color];
     // assume we have a crossroad at the capital
@@ -468,11 +514,187 @@ export function accessibleFreeTiles(game: Game, user: User): AccessibleTile[] {
                     }
                     break;
                 }
+                case "empty":
+                case "production":
+                case "well":
+                case "canal":
+                    break;
                 default: throw Error("unreachable")
             }
         }
     }
 
+    return accessible;
+}
+
+/** True if the player has already placed their well (round 1 setup). */
+export function hasPlayerSelectedWell(game: Game, owner: TileOwner): boolean {
+    for (const key of Object.keys(game.tiles) as `${number}-${number}`[]) {
+        const t = game.tiles[key];
+        if (t.owned && t.owner === owner && t.content.type_ === "well") return true;
+    }
+    return false;
+}
+
+/** True if (x,y) is a valid well placement for owner: owned by owner, empty, not city hall. */
+export function canPlaceWell(game: Game, owner: TileOwner, x: number, y: number): boolean {
+    const key = `${y}-${x}` as `${number}-${number}`;
+    const t = game.tiles[key];
+    return !!t?.owned && t.owner === owner && t.content.type_ === "empty";
+}
+
+/** Returns the well position for the owner, or null if not placed. */
+export function getWellPosition(game: Game, owner: TileOwner): Point | null {
+    for (const key of Object.keys(game.tiles) as `${number}-${number}`[]) {
+        const t = game.tiles[key];
+        if (t.owned && t.owner === owner && t.content.type_ === "well")
+            return point(t.x, t.y);
+    }
+    return null;
+}
+
+const pointKey = (p: Point) => `${p.y}-${p.x}`;
+
+/** Empty tiles where the player can place a canal (connected from well via existing canals).
+ *  For straight canals, includes anchor (x,y) where (x,y)+(x+1,y) or (x,y)+(x,y+1) form a valid 2-tile segment. */
+export function accessibleCanalTiles(game: Game, user: User): AccessibleTile[] {
+    const start = getWellPosition(game, user.color);
+    if (!start) return [];
+    const visitedSet = new Set<string>();
+    const visited: Point[] = [];
+    const toVisit: Point[] = [start];
+    const accessible: AccessibleTile[] = [];
+
+    while (toVisit.length > 0) {
+        const p = toVisit.pop()!;
+        if (visitedSet.has(pointKey(p))) continue;
+        visitedSet.add(pointKey(p));
+        visited.push(p);
+        const tile = game.tiles[pointKey(p)];
+        if (!tile.owned || tile.owner !== user.color) continue;
+        const dirs = tile.content.type_ === "well"
+            ? directions(true, true, true, true)
+            : tile.content.type_ === "canal"
+                ? accessibleDirections(tile.content)
+                : null;
+        if (!dirs) continue;
+        if (tile.content.type_ === "canal" && (tile.content as CanalTile).canal === "straight") {
+            const rot = (tile.content as CanalTile).rotation;
+            const other: Point = (rot === 0 || rot === 180) ? point(p.x + 1, p.y) : point(p.x, p.y + 1);
+            if (isInsideBoard(other)) visitedSet.add(pointKey(other));
+        }
+        if (dirs.up) {
+            const up = point(p.x, p.y - 1);
+            if (!visitedSet.has(pointKey(up))) {
+                match(game.tiles[pointKey(up)])
+                    .with(P.union({ owned: false }, { owned: true, owner: user.color, content: { type_: "empty" } }), (upTile) => {
+                        const existing = accessible.find((t) => t.x === up.x && t.y === up.y);
+                        if (existing) existing.bottom = true;
+                        else accessible.push({ x: upTile.x, y: upTile.y, ...emptyDirections, bottom: true });
+                    })
+                    .with({ owned: true, owner: user.color, content: { type_: "canal" } }, (nextTile) => {
+                        if (accessibleDirections(nextTile.content).bottom) toVisit.push(up);
+                    })
+                    .otherwise(() => {});
+            }
+        }
+        if (dirs.right) {
+            const right = point(p.x + 1, p.y);
+            if (!visitedSet.has(pointKey(right))) {
+                match(game.tiles[pointKey(right)])
+                    .with(P.union({ owned: false }, { owned: true, owner: user.color, content: { type_: "empty" } }), (rightTile) => {
+                        const existing = accessible.find((t) => t.x === right.x && t.y === right.y);
+                        if (existing) existing.left = true;
+                        else accessible.push({ x: rightTile.x, y: rightTile.y, ...emptyDirections, left: true });
+                    })
+                    .with({ owned: true, owner: user.color, content: { type_: "canal" } }, (nextTile) => {
+                        if (accessibleDirections(nextTile.content).left) toVisit.push(right);
+                    })
+                    .otherwise(() => {});
+            }
+        }
+        if (dirs.bottom) {
+            const bottom = point(p.x, p.y + 1);
+            if (!visitedSet.has(pointKey(bottom))) {
+                match(game.tiles[pointKey(bottom)])
+                    .with(P.union({ owned: false }, { owned: true, owner: user.color, content: { type_: "empty" } }), (bottomTile) => {
+                        const existing = accessible.find((t) => t.x === bottom.x && t.y === bottom.y);
+                        if (existing) existing.up = true;
+                        else accessible.push({ x: bottomTile.x, y: bottomTile.y, ...emptyDirections, up: true });
+                    })
+                    .with({ owned: true, owner: user.color, content: { type_: "canal" } }, (nextTile) => {
+                        if (accessibleDirections(nextTile.content).up) toVisit.push(bottom);
+                    })
+                    .otherwise(() => {});
+            }
+        }
+        if (dirs.left) {
+            const left = point(p.x - 1, p.y);
+            if (!visitedSet.has(pointKey(left))) {
+                match(game.tiles[pointKey(left)])
+                    .with(P.union({ owned: false }, { owned: true, owner: user.color, content: { type_: "empty" } }), (leftTile) => {
+                        const existing = accessible.find((t) => t.x === left.x && t.y === left.y);
+                        if (existing) existing.right = true;
+                        else accessible.push({ x: leftTile.x, y: leftTile.y, ...emptyDirections, right: true });
+                    })
+                    .with({ owned: true, owner: user.color, content: { type_: "canal" } }, (nextTile) => {
+                        if (accessibleDirections(nextTile.content).right) toVisit.push(left);
+                    })
+                    .otherwise(() => {});
+            }
+        }
+    }
+
+    const inVisited = (x: number, y: number) => visitedSet.has(`${y}-${x}`);
+    const addOrMerge = (x: number, y: number, dir: Partial<AccessibleDirections>) => {
+        const existing = accessible.find((t) => t.x === x && t.y === y);
+        if (existing) {
+            if (dir.left) existing.left = true;
+            if (dir.right) existing.right = true;
+            if (dir.up) existing.up = true;
+            if (dir.bottom) existing.bottom = true;
+        } else {
+            accessible.push({ x, y, ...emptyDirections, ...dir });
+        }
+    };
+    for (let y = 0; y < BOARD_SIZE; y++) {
+        for (let x = 0; x < BOARD_SIZE; x++) {
+            const t0 = game.tiles[`${y}-${x}`];
+            if (!t0?.owned || t0.owner !== user.color || t0.content.type_ !== "empty") continue;
+            const right = game.tiles[`${y}-${x + 1}`];
+            const okH = right?.owned && right.owner === user.color && right.content.type_ === "empty";
+            if (okH && (inVisited(x - 1, y) || inVisited(x + 2, y))) {
+                addOrMerge(x, y, {
+                    left: inVisited(x - 1, y),
+                    right: inVisited(x + 2, y),
+                });
+            }
+            const left = game.tiles[`${y}-${x - 1}`];
+            const okHLeft = left?.owned && left.owner === user.color && left.content.type_ === "empty";
+            if (okHLeft && (inVisited(x - 2, y) || inVisited(x + 1, y))) {
+                addOrMerge(x - 1, y, {
+                    left: inVisited(x - 2, y),
+                    right: inVisited(x + 1, y),
+                });
+            }
+            const bottom = game.tiles[`${y + 1}-${x}`];
+            const okV = bottom?.owned && bottom.owner === user.color && bottom.content.type_ === "empty";
+            if (okV && (inVisited(x, y - 1) || inVisited(x, y + 2))) {
+                addOrMerge(x, y, {
+                    up: inVisited(x, y - 1),
+                    bottom: inVisited(x, y + 2),
+                });
+            }
+            const top = game.tiles[`${y - 1}-${x}`];
+            const okVTop = top?.owned && top.owner === user.color && top.content.type_ === "empty";
+            if (okVTop && (inVisited(x, y - 2) || inVisited(x, y + 1))) {
+                addOrMerge(x, y - 1, {
+                    up: inVisited(x, y - 2),
+                    bottom: inVisited(x, y + 1),
+                });
+            }
+        }
+    }
     return accessible;
 }
 

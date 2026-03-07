@@ -1,4 +1,4 @@
-import { accessibleFreeTiles } from "../logic/Game";
+import { accessibleCanalTiles, accessibleFreeTiles, hasPlayerSelectedWell } from "../logic/Game";
 import { useGlobalContext } from "../logic/State";
 import Tile from "./Tile";
 
@@ -8,9 +8,28 @@ export default function Board() {
 
 	const user = game.users[game.turn];
 	const accessibles = accessibleFreeTiles(game, user);
+	const canalAccessibles = accessibleCanalTiles(game, user);
+	const wellSelectionMode =
+		game.round === 1 && !hasPlayerSelectedWell(game, game.turn);
 
 	return (
 		<div>
+			{wellSelectionMode && (
+				<div
+					style={{
+						textAlign: "center",
+						padding: "0.2rem 0.4rem",
+						backgroundColor: "rgba(33, 150, 243, 0.12)",
+						borderRadius: 4,
+						marginBottom: "0.25rem",
+						fontSize: "0.7rem",
+						fontWeight: 600,
+						color: "#1565c0",
+					}}
+				>
+					Select the location of your water well
+				</div>
+			)}
 			{Array.from({ length: 18 }, (_, y) => {
 				return (
 					<div
@@ -23,8 +42,15 @@ export default function Board() {
 							const accessible = accessibles.find(
 								(t) => t.x === tile.x && t.y === tile.y,
 							);
+							const canalAccessible = canalAccessibles.find(
+								(t) => t.x === tile.x && t.y === tile.y,
+							);
 
-							return Tile({ tile, accessible: accessible ?? null });
+							return Tile({
+								tile,
+								accessible: accessible ?? null,
+								canalAccessible: canalAccessible ?? null,
+							});
 						})}
 					</div>
 				);

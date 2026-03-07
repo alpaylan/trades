@@ -3,10 +3,12 @@ import { initialState, reducer } from "./engine";
 
 describe("engine reducer", () => {
 	it("advances turn on END_TURN", () => {
-		const state = initialState();
-		const next = reducer(state, { type: "END_TURN" });
-		expect(next.game.turn).toBe("orange");
-		expect(next.game.turns).toBe(1);
+		let state = initialState();
+		// Round 1: must select well before END_TURN
+		state = reducer(state, { type: "SELECT_WELL", payload: { x: 0, y: 0 } });
+		state = reducer(state, { type: "END_TURN" });
+		expect(state.game.turn).toBe("orange");
+		expect(state.game.turns).toBe(1);
 	});
 
 	it("rejects BUY_ITEM when player cannot afford", () => {

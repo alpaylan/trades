@@ -127,7 +127,7 @@ function SpeculativeDiceOverlay({ onDone }: { onDone: (roll: number) => void }) 
 		</div>
 	);
 }
-import type { TileKey } from "../logic/Game";
+import { hasPlayerSelectedWell, type TileKey } from "../logic/Game";
 import Inventory from "./Inventory";
 import RotationSelector from "./RotationSelector";
 import Store from "./Store";
@@ -181,6 +181,8 @@ export default function Controls() {
 	const speculativeActive = state.activeEventEffects?.speculativeInvestment ?? false;
 	const speculativePending =
 		speculativeActive && !state.speculativeInvestmentResolved[state.game.turn];
+	const wellNotSelectedPending =
+		state.game.round === 1 && !hasPlayerSelectedWell(state.game, state.game.turn);
 
 	const pt = state.pendingTurn;
 	const tile = pt ? state.game.tiles[`${pt.y}-${pt.x}`] : null;
@@ -217,7 +219,7 @@ export default function Controls() {
 				<button
 					type="button"
 					onClick={() => dispatch({ type: "END_TURN" })}
-					disabled={!!giftPending || !!lbPending || speculativePending}
+					disabled={!!giftPending || !!lbPending || speculativePending || !!wellNotSelectedPending}
 					title={
 						giftPending
 							? "Take your free action tile first"
@@ -225,7 +227,9 @@ export default function Controls() {
 								? "Pick your 2 free road tiles first"
 								: speculativePending
 									? "Roll Speculative Investment first"
-									: undefined
+									: wellNotSelectedPending
+										? "Select your water well first"
+										: undefined
 					}
 					style={{
 						backgroundColor: actionsLeft === 0 ? "#ffb300" : "#e0e0e0",

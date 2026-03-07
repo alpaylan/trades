@@ -1,12 +1,16 @@
 import { match, P } from "ts-pattern";
 import {
 	ACTION_TYPES,
+	accessibleCanalTiles,
 	accessibleDirections,
 	accessibleFreeTiles,
 	calculateUserProduction,
+	canPlaceWell,
 	findTradeRoutes,
 	CITY_HALLS,
 	game,
+	hasPlayerSelectedWell,
+	owned,
 	isRoadEligibleForCustoms,
 	ROAD_ROTATIONS,
 	RESOURCE_TYPES,
@@ -18,6 +22,7 @@ import {
 	type ProductionTile,
 	type Tilable,
 	toKey,
+	well,
 	zero,
 	exampleBoardScenarioGame,
 } from "./Game";
@@ -361,6 +366,7 @@ export type Action =
 	| { type: "TOLL_TILE"; payload: { x: number; y: number } }
 	| { type: "CUSTOMS_TILE"; payload: { x: number; y: number } }
 	| { type: "PLACE_TILE"; payload: { x: number; y: number; tile: Tilable } }
+	| { type: "SELECT_WELL"; payload: { x: number; y: number } }
 	| { type: "DISMISS_EVENT_CARD" }
 	| { type: "DISMISS_BLACK_MARKET_POPUP" }
 	| { type: "DISMISS_MERCHANTS_LOTTERY_POPUP" }
@@ -395,6 +401,7 @@ export const AUTHORITATIVE_ACTION_TYPES: Action["type"][] = [
 	"TOLL_TILE",
 	"CUSTOMS_TILE",
 	"PLACE_TILE",
+	"SELECT_WELL",
 	"DISMISS_EVENT_CARD",
 	"SPECULATIVE_ROLL",
 ];
@@ -418,6 +425,7 @@ export const reducer = (state: State, action: Action): State => {
 			"SET_ROTATION",
 			"SET_PENDING_TURN",
 			"CLEAR_PENDING_TURN",
+			"SELECT_WELL",
 	"DISMISS_EVENT_CARD",
 			"UNDO",
 		].includes(innerAction.type);
@@ -467,8 +475,30 @@ export const reducer = (state: State, action: Action): State => {
 			pendingTurn: null,
 			history: historyState,
 		}))
+		.with({ type: "SELECT_WELL" }, (innerAction) => {
+			const { x, y } = innerAction.payload;
+			if (state.game.round !== 1) return { ...state, history: historyState };
+			const owner = state.game.turn;
+			if (hasPlayerSelectedWell(state.game, owner)) return { ...state, history: historyState };
+			if (!canPlaceWell(state.game, owner, x, y)) return { ...state, history: historyState };
+			const key = `${y}-${x}` as `${number}-${number}`;
+			return {
+				...state,
+				game: {
+					...state.game,
+					tiles: {
+						...state.game.tiles,
+						[key]: owned(x, y, owner, well()),
+					},
+				},
+				selected: null,
+				pendingTurn: null,
+				pendingRotation: null,
+				history: historyState,
+			};
+		})
 		.with({ type: "SET_ROTATION" }, (innerAction) => {
-			if (!state.selected || state.selected.type_ !== "road") {
+			if (!state.selected || (state.selected.type_ !== "road" && state.selected.type_ !== "canal")) {
 				return { ...state, history: historyState };
 			}
 			const rotatedTile: Tilable = {
@@ -487,6 +517,9 @@ export const reducer = (state: State, action: Action): State => {
 				return state;
 			}
 			if (state.activeEventEffects?.logisticBreakthrough && state.logisticBreakthroughPicks < 2) {
+				return state;
+			}
+			if (state.game.round === 1 && !hasPlayerSelectedWell(state.game, state.game.turn)) {
 				return state;
 			}
 			const currentTurn = state.game.turn;
@@ -953,18 +986,22 @@ export const reducer = (state: State, action: Action): State => {
 			) {
 				return state;
 			}
-			const accessible = accessibleFreeTiles(state.game, user).find(
+			const accessibleFromRoad = accessibleFreeTiles(state.game, user).find(
 				(t) => t.x === x && t.y === y,
 			);
-			if (!accessible) {
-				return state;
-			}
+			const accessibleFromCanal = accessibleCanalTiles(state.game, user).find(
+				(t) => t.x === x && t.y === y,
+			);
 			if (tile.type_ === "road") {
-				if (!directionMatch(accessibleDirections(tile), accessible)) {
+				if (!accessibleFromRoad || !directionMatch(accessibleDirections(tile), accessibleFromRoad)) {
 					return state;
 				}
 			} else if (tile.type_ === "production") {
-				if (!notInCenter(x, y)) {
+				if (!accessibleFromRoad || !notInCenter(x, y)) {
+					return state;
+				}
+			} else if (tile.type_ === "canal") {
+				if (!accessibleFromCanal || !directionMatch(accessibleDirections(tile), accessibleFromCanal)) {
 					return state;
 				}
 			} else {
@@ -972,6 +1009,29 @@ export const reducer = (state: State, action: Action): State => {
 			}
 			if (tile.type_ === "road" && state.activeEventEffects?.noRoad) {
 				return state;
+			}
+
+			const isStraightCanal = tile.type_ === "canal" && tile.canal === "straight";
+			const rot = tile.type_ === "canal" ? tile.rotation : 0;
+			// Second cell for straight: same logic as road – use accessible direction (canal reaches from which side)
+			let x2 = x;
+			let y2 = y;
+			if (isStraightCanal && accessibleFromCanal) {
+				if (rot === 0 || rot === 180) {
+					x2 = accessibleFromCanal.left ? x - 1 : x + 1;
+				} else {
+					y2 = accessibleFromCanal.up ? y - 1 : y + 1;
+				}
+			}
+			if (isStraightCanal) {
+				const secondTile = state.game.tiles[`${y2}-${x2}`];
+				if (
+					!secondTile?.owned ||
+					secondTile.owner !== user.color ||
+					secondTile.content.type_ !== "empty"
+				) {
+					return state;
+				}
 			}
 
 			let inventoryKey: TileKey;
@@ -998,6 +1058,25 @@ export const reducer = (state: State, action: Action): State => {
 			if (!fromPurchaseThisTurn && actionsUsed >= 2) {
 				return state;
 			}
+			const newTiles: typeof state.game.tiles = {
+				...state.game.tiles,
+				[`${y}-${x}`]: {
+					x,
+					y,
+					content: tile,
+					owned: true,
+					owner: user.color,
+				},
+			};
+			if (isStraightCanal) {
+				newTiles[`${y2}-${x2}`] = {
+					x: x2,
+					y: y2,
+					content: tile,
+					owned: true,
+					owner: user.color,
+				};
+			}
 			const updatedGame = {
 				...state.game,
 				users: {
@@ -1010,16 +1089,7 @@ export const reducer = (state: State, action: Action): State => {
 						},
 					},
 				},
-				tiles: {
-					...state.game.tiles,
-					[`${y}-${x}`]: {
-						x,
-						y,
-						content: tile,
-						owned: true,
-						owner: user.color,
-					},
-				},
+				tiles: newTiles,
 			};
 
 			const hasMoreRoads = tile.type_ === "road"
@@ -1027,7 +1097,9 @@ export const reducer = (state: State, action: Action): State => {
 						const key = `road:${tile.road}:${rotation}` as TileKey;
 						return user.inventory[key] > (key === inventoryKey ? 1 : 0);
 					})
-				: inventoryCount > 0;
+				: tile.type_ === "canal"
+					? inventoryCount > 0
+					: inventoryCount > 0;
 
 			let purchasedThisTurn: PurchasedThisTurn = state.purchasedThisTurn;
 			if (fromPurchaseThisTurn) {

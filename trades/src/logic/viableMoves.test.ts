@@ -7,7 +7,10 @@ describe("viable move listing", () => {
 		const state = initialState();
 		const viable = listViableMoves(state);
 		expect(viable.length).toBeGreaterThan(0);
-		expect(viable.some((move) => move.type === "END_TURN")).toBe(true);
+		// Round 1: SELECT_WELL is required before END_TURN
+		expect(
+			viable.some((move) => move.type === "END_TURN" || move.type === "SELECT_WELL"),
+		).toBe(true);
 	});
 
 	it("all listed moves mutate state", () => {
@@ -24,15 +27,14 @@ describe("viable move listing", () => {
 	});
 
 	it("includes dismiss when event card overlay is open", () => {
-		const before = initialState();
-		const stateWithOverlay = reducer(
-			reducer(reducer(reducer(before, { type: "END_TURN" }), { type: "END_TURN" }), {
-				type: "END_TURN",
-			}),
-			{ type: "END_TURN" },
-		);
-		expect(stateWithOverlay.showEventCard).toBe(true);
-		const viable = listViableMoves(stateWithOverlay);
+		let state = initialState();
+		// Round 1: each player must select well before END_TURN; then all 4 END_TURN to trigger round end
+		for (const [x, y] of [[0, 0], [9, 0], [10, 9], [0, 9]]) {
+			state = reducer(state, { type: "SELECT_WELL", payload: { x, y } });
+			state = reducer(state, { type: "END_TURN" });
+		}
+		expect(state.showEventCard, "round end should show event card").toBe(true);
+		const viable = listViableMoves(state);
 		expect(viable.some((move) => move.type === "DISMISS_EVENT_CARD")).toBe(true);
 	});
 

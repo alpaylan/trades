@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { type ResourceCollection, type Tilable, road } from "../logic/Game";
+import { canal, hasPlayerSelectedWell, type ResourceCollection, type Tilable, road } from "../logic/Game";
 import { useGlobalContext } from "../logic/State";
 import DiceRoll from "./DiceRoll";
 
@@ -36,6 +36,7 @@ function StoreItem({
 	text,
 	showGoldBars,
 	halfSize,
+	iconStyle,
 }: {
 	resources: ResourceCollection;
 	price: number;
@@ -45,6 +46,8 @@ function StoreItem({
 	showGoldBars?: { iconCount: number };
 	/** When true, button is half height (half of a normal square). */
 	halfSize?: boolean;
+	/** Optional style for the icon img (e.g. 2×1 for straight canal). */
+	iconStyle?: React.CSSProperties;
 }) {
 	const { state, dispatch } = useGlobalContext();
 	const current = state.game.turn;
@@ -103,7 +106,13 @@ function StoreItem({
 					src={icon}
 					alt={`${item.type_} icon`}
 					title={tooltip}
-					style={halfSize ? { maxHeight: "0.9rem", width: "auto" } : undefined}
+					style={
+						iconStyle
+							? { ...iconStyle, ...(halfSize ? { maxHeight: "0.9rem", width: "auto" } : {}) }
+							: halfSize
+								? { maxHeight: "0.9rem", width: "auto" }
+								: undefined
+					}
 				/>
 			)}
 			<span style={halfSize ? { fontSize: "0.7rem" } : undefined}>{displayPrice}</span>
@@ -199,6 +208,8 @@ export default function Store({
 		state.activeEventEffects?.logisticBreakthrough &&
 		state.logisticBreakthroughPicks < 2;
 	const marketHoliday = state.activeEventEffects?.marketHoliday ?? false;
+	const wellSelectionMode =
+		state.game.round === 1 && !hasPlayerSelectedWell(state.game, state.game.turn);
 	const supplyChainShortage = state.activeEventEffects?.supplyChainShortage ?? false;
 	const speculativePending =
 		state.activeEventEffects?.speculativeInvestment &&
@@ -216,7 +227,7 @@ export default function Store({
 		<div
 			id="store"
 			style={
-				marketHoliday || speculativePending
+				marketHoliday || speculativePending || wellSelectionMode
 					? { opacity: 0.4, pointerEvents: "none" }
 					: undefined
 			}
@@ -371,6 +382,24 @@ export default function Store({
 					<img src="/assets/question.svg" alt="random tile icon" title={`Random road tile (cost: ${randomDisplayPrice})`} />
 					<span>{randomDisplayPrice}</span>
 				</button>
+			</div>
+			<div id="canal-tiles" className="substore">
+				<StoreItem
+					resources={resources}
+					price={3}
+					item={canal("straight", 0)}
+					icon="/assets/canal-straight.svg"
+					text="Water canal straight (2×1)"
+					iconStyle={{ width: 48, height: 24 }}
+				/>
+				<StoreItem
+					resources={resources}
+					price={3}
+					item={canal("corner", 0)}
+					icon="/assets/canal-corner.svg"
+					text="Water canal corner (1×1)"
+					iconStyle={{ transform: "rotate(180deg)" }}
+				/>
 			</div>
 			<div
 				id="production-tiles"

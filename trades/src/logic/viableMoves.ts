@@ -2,6 +2,13 @@ import { reducer, type Action, type State } from "./engine";
 import {
 	type ActionType,
 	ACTION_TYPES,
+	accessibleCanalTiles,
+	accessibleDirections,
+	canal,
+	CANAL_TYPES,
+	canPlaceWell,
+	directionMatch,
+	hasPlayerSelectedWell,
 	isRoadEligibleForCustoms,
 	type OwnedTile,
 	type ProductionLevel,
@@ -60,6 +67,12 @@ function buyCandidates(): Action[] {
 		type: "BUY_ITEM",
 		payload: { item: roadTile("plus", 0), price: 5 },
 	});
+	for (const canalType of CANAL_TYPES) {
+		moves.push({
+			type: "BUY_ITEM",
+			payload: { item: canal(canalType, 0), price: 3 },
+		});
+	}
 	for (const production of RANDOM_TEST_PRODUCTION_TYPES) {
 		for (const level of PRODUCTION_LEVELS) {
 			const price = level === 1 ? 5 : level === 2 ? 15 : 30;
@@ -71,6 +84,9 @@ function buyCandidates(): Action[] {
 	}
 	return moves;
 }
+
+const CANAL_STRAIGHT_ROTATIONS: RoadRotation[] = [0, 90];
+const CANAL_CORNER_ROTATIONS: RoadRotation[] = [0, 90, 180, 270];
 
 function placeCandidates(state: State): Action[] {
 	const owner = state.game.turn;
@@ -84,7 +100,26 @@ function placeCandidates(state: State): Action[] {
 		.filter(([, count]) => count > 0)
 		.map(([key]) => key as TileKey);
 
+	const canalAccessibles = accessibleCanalTiles(state.game, user);
+
 	for (const key of inventoryKeys) {
+		if (key === "canal:straight" || key === "canal:corner") {
+			const canalType = key === "canal:straight" ? "straight" : "corner";
+			const rotations =
+				canalType === "straight" ? CANAL_STRAIGHT_ROTATIONS : CANAL_CORNER_ROTATIONS;
+			for (const acc of canalAccessibles) {
+				for (const rotation of rotations) {
+					const tile = canal(canalType, rotation);
+					if (directionMatch(accessibleDirections(tile), acc)) {
+						moves.push({
+							type: "PLACE_TILE",
+							payload: { x: acc.x, y: acc.y, tile },
+						});
+					}
+				}
+			}
+			continue;
+		}
 		const tile = toTilable(key);
 		for (const { x, y } of ownedTileCoords) {
 			moves.push({
@@ -129,11 +164,48 @@ function roadActionCandidates(state: State): Action[] {
 	return moves;
 }
 
+function wellSelectionCandidates(state: State): Action[] {
+	if (state.game.round !== 1) return [];
+	const owner = state.game.turn;
+	if (hasPlayerSelectedWell(state.game, owner)) return [];
+	const moves: Action[] = [];
+	for (let y = 0; y < 18; y++) {
+		for (let x = 0; x < 18; x++) {
+			if (canPlaceWell(state.game, owner, x, y)) {
+				moves.push({ type: "SELECT_WELL", payload: { x, y } });
+			}
+		}
+	}
+	return moves;
+}
+
+/** When Logistic Breakthrough is active and picks < 2, free road buys (price 0) are valid. */
+function freeRoadBuyCandidates(state: State): Action[] {
+	const lbPending =
+		state.activeEventEffects?.logisticBreakthrough &&
+		state.logisticBreakthroughPicks < 2;
+	if (!lbPending) return [];
+	const moves: Action[] = [];
+	for (const roadType of ROAD_TYPES) {
+		moves.push({
+			type: "BUY_ITEM",
+			payload: { item: roadTile(roadType, 0), price: 0 },
+		});
+	}
+	moves.push({
+		type: "BUY_ITEM",
+		payload: { item: roadTile("plus", 0), price: 0 },
+	});
+	return moves;
+}
+
 export function allCandidateMoves(state: State): Action[] {
 	const base: Action[] = [{ type: "END_TURN" }];
 	if (state.showEventCard) {
 		base.push({ type: "DISMISS_EVENT_CARD" });
 	}
+	base.push(...wellSelectionCandidates(state));
+	base.push(...freeRoadBuyCandidates(state));
 	base.push(...buyCandidates());
 	base.push(...placeCandidates(state));
 	base.push(...roadActionCandidates(state));

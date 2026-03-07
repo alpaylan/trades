@@ -19,6 +19,8 @@ function tileToIcon(tile: Tilable): string {
 			return `/assets/road-${tile.road}.svg`;
 		case "production":
 			return `/assets/${tile.production}-${tile.level}.svg`;
+		case "canal":
+			return `/assets/canal-${tile.canal}.svg`;
 		default:
 			throw new Error("Unknown tile type");
 	}
@@ -60,9 +62,10 @@ function InventoryItem({
 }) {
 	const src = tileToIcon(tile);
 	const alt = match(tile)
-		.with({ type_: "action" }, (tile) => `${tile.action} icon`)
-		.with({ type_: "road" }, (tile) => `${tile.road} icon`)
-		.with({ type_: "production" }, (tile) => `${tile.production} icon`)
+		.with({ type_: "action" }, (t) => `${t.action} icon`)
+		.with({ type_: "road" }, (t) => `${t.road} icon`)
+		.with({ type_: "production" }, (t) => `${t.production} icon`)
+		.with({ type_: "canal" }, (t) => `canal ${t.canal} icon`)
 		.exhaustive();
 
 	const isGoldProduction =
@@ -80,10 +83,27 @@ function InventoryItem({
 			<button
 				type="button"
 				onClick={placeTile}
-				style={{ padding: 0, border: "none", background: "none" }}
+				style={{
+					padding: 0,
+					border: "none",
+					background: "none",
+					display: "block",
+				}}
 			>
 				{isGoldProduction ? (
 					<GoldBars count={tile.level} size={16} />
+				) : tile.type_ === "canal" && tile.canal === "straight" ? (
+					<img
+						src={src}
+						alt={alt}
+						style={{ width: 64, height: 32, display: "block" }}
+					/>
+				) : tile.type_ === "canal" && tile.canal === "corner" ? (
+					<img
+						src={src}
+						alt={alt}
+						style={{ display: "block", transform: "rotate(180deg)" }}
+					/>
 				) : (
 					<img src={src} alt={alt} />
 				)}
@@ -145,7 +165,14 @@ function InventorySection({
 			}}
 		>
 			{items.map(({ tile, count }, index) => (
-				<div key={index}>
+				<div
+					key={index}
+					style={
+						tile.type_ === "canal" && tile.canal === "straight"
+							? { width: 72, flexShrink: 0 }
+							: undefined
+					}
+				>
 					<InventoryItem
 						selected={
 							!!(
