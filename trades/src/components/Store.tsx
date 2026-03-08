@@ -107,11 +107,14 @@ function StoreItem({
 					alt={`${item.type_} icon`}
 					title={tooltip}
 					style={
-						iconStyle
-							? { ...iconStyle, ...(halfSize ? { maxHeight: "0.9rem", width: "auto" } : {}) }
-							: halfSize
-								? { maxHeight: "0.9rem", width: "auto" }
-								: undefined
+						halfSize
+							? { maxHeight: "0.9rem", width: "auto", display: "block" }
+							: {
+									width: iconStyle?.width ?? 28,
+									height: iconStyle?.height ?? 28,
+									display: "block",
+									...iconStyle,
+								}
 					}
 				/>
 			)}
@@ -388,8 +391,8 @@ export default function Store({
 					resources={resources}
 					price={3}
 					item={canal("straight", 0)}
-					icon="/assets/canal-straight.svg"
-					text="Water canal straight (2×1)"
+					icon="/assets/canal-straight-2x1.svg"
+					text="Water canal straight (places on 2 cells)"
 					iconStyle={{ width: 48, height: 24 }}
 				/>
 				<StoreItem
@@ -398,7 +401,6 @@ export default function Store({
 					item={canal("corner", 0)}
 					icon="/assets/canal-corner.svg"
 					text="Water canal corner (1×1)"
-					iconStyle={{ transform: "rotate(180deg)" }}
 				/>
 			</div>
 			<div

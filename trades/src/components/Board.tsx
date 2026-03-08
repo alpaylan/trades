@@ -12,6 +12,27 @@ export default function Board() {
 	const wellSelectionMode =
 		game.round === 1 && !hasPlayerSelectedWell(game, game.turn);
 
+	const roll = state.speculativeInvestmentRoll;
+	const speculativeTargetByKey: Record<string, "downgrade" | "upgrade"> = {};
+	if (roll === 1 || roll === 2 || roll === 5 || roll === 6) {
+		const current = game.turn;
+		for (const key of Object.keys(game.tiles)) {
+			const t = game.tiles[key];
+			if (
+				!t.owned ||
+				t.owner !== current ||
+				t.content.type_ !== "production" ||
+				t.content.production !== "dollar"
+			)
+				continue;
+			if (roll === 1 || roll === 2) {
+				speculativeTargetByKey[key] = "downgrade";
+			} else if (t.content.level < 3) {
+				speculativeTargetByKey[key] = "upgrade";
+			}
+		}
+	}
+
 	return (
 		<div>
 			{wellSelectionMode && (
@@ -46,10 +67,13 @@ export default function Board() {
 								(t) => t.x === tile.x && t.y === tile.y,
 							);
 
+							const speculativeTarget =
+								speculativeTargetByKey[`${tile.y}-${tile.x}`] ?? null;
 							return Tile({
 								tile,
 								accessible: accessible ?? null,
 								canalAccessible: canalAccessible ?? null,
+								speculativeTarget,
 							});
 						})}
 					</div>

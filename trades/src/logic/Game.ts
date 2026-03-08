@@ -553,149 +553,98 @@ export function getWellPosition(game: Game, owner: TileOwner): Point | null {
     return null;
 }
 
-const pointKey = (p: Point) => `${p.y}-${p.x}`;
-
-/** Empty tiles where the player can place a canal (connected from well via existing canals).
- *  For straight canals, includes anchor (x,y) where (x,y)+(x+1,y) or (x,y)+(x,y+1) form a valid 2-tile segment. */
 export function accessibleCanalTiles(game: Game, user: User): AccessibleTile[] {
-    const start = getWellPosition(game, user.color);
-    if (!start) return [];
-    const visitedSet = new Set<string>();
-    const visited: Point[] = [];
-    const toVisit: Point[] = [start];
+    const startPoint = getWellPosition(game, user.color);
+    if (!startPoint) return [];
+
+    const visited = new Set<string>();
+    const toVisit: Point[] = [startPoint];
     const accessible: AccessibleTile[] = [];
+
+    const addOrMerge = (candidate: Point, dir: Partial<AccessibleDirections>) => {
+        const existing = accessible.find((tile) => tile.x === candidate.x && tile.y === candidate.y);
+        if (existing) {
+            if (dir.up) existing.up = true;
+            if (dir.right) existing.right = true;
+            if (dir.bottom) existing.bottom = true;
+            if (dir.left) existing.left = true;
+            return;
+        }
+        accessible.push({ x: candidate.x, y: candidate.y, ...emptyDirections, ...dir });
+    };
 
     while (toVisit.length > 0) {
         const p = toVisit.pop()!;
-        if (visitedSet.has(pointKey(p))) continue;
-        visitedSet.add(pointKey(p));
-        visited.push(p);
-        const tile = game.tiles[pointKey(p)];
-        if (!tile.owned || tile.owner !== user.color) continue;
-        const dirs = tile.content.type_ === "well"
-            ? directions(true, true, true, true)
-            : tile.content.type_ === "canal"
-                ? accessibleDirections(tile.content)
-                : null;
-        if (!dirs) continue;
-        if (tile.content.type_ === "canal" && (tile.content as CanalTile).canal === "straight") {
-            const rot = (tile.content as CanalTile).rotation;
-            const other: Point = (rot === 0 || rot === 180) ? point(p.x + 1, p.y) : point(p.x, p.y + 1);
-            if (isInsideBoard(other)) visitedSet.add(pointKey(other));
-        }
-        if (dirs.up) {
-            const up = point(p.x, p.y - 1);
-            if (!visitedSet.has(pointKey(up))) {
-                match(game.tiles[pointKey(up)])
-                    .with(P.union({ owned: false }, { owned: true, owner: user.color, content: { type_: "empty" } }), (upTile) => {
-                        const existing = accessible.find((t) => t.x === up.x && t.y === up.y);
-                        if (existing) existing.bottom = true;
-                        else accessible.push({ x: upTile.x, y: upTile.y, ...emptyDirections, bottom: true });
-                    })
-                    .with({ owned: true, owner: user.color, content: { type_: "canal" } }, (nextTile) => {
-                        if (accessibleDirections(nextTile.content).bottom) toVisit.push(up);
-                    })
-                    .otherwise(() => {});
+        const key = `${p.y}-${p.x}`;
+        if (visited.has(key)) continue;
+        visited.add(key);
+
+        const tile = game.tiles[key as `${number}-${number}`];
+        if (!tile?.owned || tile.owner !== user.color) continue;
+        if (tile.content.type_ !== "well" && tile.content.type_ !== "canal") continue;
+
+        const dirs = accessibleDirections(tile.content);
+        const neighbors: {
+            allowed: boolean;
+            point: Point;
+            back: keyof AccessibleDirections;
+        }[] = [
+            { allowed: dirs.up, point: point(tile.x, tile.y - 1), back: "bottom" },
+            { allowed: dirs.right, point: point(tile.x + 1, tile.y), back: "left" },
+            { allowed: dirs.bottom, point: point(tile.x, tile.y + 1), back: "up" },
+            { allowed: dirs.left, point: point(tile.x - 1, tile.y), back: "right" },
+        ];
+
+        for (const neighbor of neighbors) {
+            if (!neighbor.allowed || !isInsideBoard(neighbor.point)) continue;
+
+            const next = game.tiles[`${neighbor.point.y}-${neighbor.point.x}` as `${number}-${number}`];
+            if (!next?.owned || next.owner !== user.color) continue;
+
+            if (next.content.type_ === "empty") {
+                addOrMerge(neighbor.point, { [neighbor.back]: true });
+                continue;
             }
-        }
-        if (dirs.right) {
-            const right = point(p.x + 1, p.y);
-            if (!visitedSet.has(pointKey(right))) {
-                match(game.tiles[pointKey(right)])
-                    .with(P.union({ owned: false }, { owned: true, owner: user.color, content: { type_: "empty" } }), (rightTile) => {
-                        const existing = accessible.find((t) => t.x === right.x && t.y === right.y);
-                        if (existing) existing.left = true;
-                        else accessible.push({ x: rightTile.x, y: rightTile.y, ...emptyDirections, left: true });
-                    })
-                    .with({ owned: true, owner: user.color, content: { type_: "canal" } }, (nextTile) => {
-                        if (accessibleDirections(nextTile.content).left) toVisit.push(right);
-                    })
-                    .otherwise(() => {});
-            }
-        }
-        if (dirs.bottom) {
-            const bottom = point(p.x, p.y + 1);
-            if (!visitedSet.has(pointKey(bottom))) {
-                match(game.tiles[pointKey(bottom)])
-                    .with(P.union({ owned: false }, { owned: true, owner: user.color, content: { type_: "empty" } }), (bottomTile) => {
-                        const existing = accessible.find((t) => t.x === bottom.x && t.y === bottom.y);
-                        if (existing) existing.up = true;
-                        else accessible.push({ x: bottomTile.x, y: bottomTile.y, ...emptyDirections, up: true });
-                    })
-                    .with({ owned: true, owner: user.color, content: { type_: "canal" } }, (nextTile) => {
-                        if (accessibleDirections(nextTile.content).up) toVisit.push(bottom);
-                    })
-                    .otherwise(() => {});
-            }
-        }
-        if (dirs.left) {
-            const left = point(p.x - 1, p.y);
-            if (!visitedSet.has(pointKey(left))) {
-                match(game.tiles[pointKey(left)])
-                    .with(P.union({ owned: false }, { owned: true, owner: user.color, content: { type_: "empty" } }), (leftTile) => {
-                        const existing = accessible.find((t) => t.x === left.x && t.y === left.y);
-                        if (existing) existing.right = true;
-                        else accessible.push({ x: leftTile.x, y: leftTile.y, ...emptyDirections, right: true });
-                    })
-                    .with({ owned: true, owner: user.color, content: { type_: "canal" } }, (nextTile) => {
-                        if (accessibleDirections(nextTile.content).right) toVisit.push(left);
-                    })
-                    .otherwise(() => {});
+
+            if (next.content.type_ === "canal" || next.content.type_ === "well") {
+                const nextDirs = accessibleDirections(next.content);
+                if (nextDirs[neighbor.back]) {
+                    toVisit.push(neighbor.point);
+                }
             }
         }
     }
 
-    const inVisited = (x: number, y: number) => visitedSet.has(`${y}-${x}`);
-    const addOrMerge = (x: number, y: number, dir: Partial<AccessibleDirections>) => {
-        const existing = accessible.find((t) => t.x === x && t.y === y);
-        if (existing) {
-            if (dir.left) existing.left = true;
-            if (dir.right) existing.right = true;
-            if (dir.up) existing.up = true;
-            if (dir.bottom) existing.bottom = true;
-        } else {
-            accessible.push({ x, y, ...emptyDirections, ...dir });
-        }
-    };
-    for (let y = 0; y < BOARD_SIZE; y++) {
-        for (let x = 0; x < BOARD_SIZE; x++) {
-            const t0 = game.tiles[`${y}-${x}`];
-            if (!t0?.owned || t0.owner !== user.color || t0.content.type_ !== "empty") continue;
-            const right = game.tiles[`${y}-${x + 1}`];
-            const okH = right?.owned && right.owner === user.color && right.content.type_ === "empty";
-            if (okH && (inVisited(x - 1, y) || inVisited(x + 2, y))) {
-                addOrMerge(x, y, {
-                    left: inVisited(x - 1, y),
-                    right: inVisited(x + 2, y),
-                });
-            }
-            const left = game.tiles[`${y}-${x - 1}`];
-            const okHLeft = left?.owned && left.owner === user.color && left.content.type_ === "empty";
-            if (okHLeft && (inVisited(x - 2, y) || inVisited(x + 1, y))) {
-                addOrMerge(x - 1, y, {
-                    left: inVisited(x - 2, y),
-                    right: inVisited(x + 1, y),
-                });
-            }
-            const bottom = game.tiles[`${y + 1}-${x}`];
-            const okV = bottom?.owned && bottom.owner === user.color && bottom.content.type_ === "empty";
-            if (okV && (inVisited(x, y - 1) || inVisited(x, y + 2))) {
-                addOrMerge(x, y, {
-                    up: inVisited(x, y - 1),
-                    bottom: inVisited(x, y + 2),
-                });
-            }
-            const top = game.tiles[`${y - 1}-${x}`];
-            const okVTop = top?.owned && top.owner === user.color && top.content.type_ === "empty";
-            if (okVTop && (inVisited(x, y - 2) || inVisited(x, y + 1))) {
-                addOrMerge(x, y - 1, {
-                    up: inVisited(x, y - 2),
-                    bottom: inVisited(x, y + 1),
-                });
-            }
+    return accessible;
+}
+
+export function getStraightCanalSecondCell(
+    game: Game,
+    owner: TileOwner,
+    anchor: Point,
+    accessible: AccessibleTile,
+    rotation: RoadRotation,
+): Point | null {
+    const candidates: Point[] =
+        rotation === 0 || rotation === 180
+            ? [
+                ...(accessible.left ? [point(anchor.x + 1, anchor.y)] : []),
+                ...(accessible.right ? [point(anchor.x - 1, anchor.y)] : []),
+            ]
+            : [
+                ...(accessible.up ? [point(anchor.x, anchor.y + 1)] : []),
+                ...(accessible.bottom ? [point(anchor.x, anchor.y - 1)] : []),
+            ];
+
+    for (const candidate of candidates) {
+        if (!isInsideBoard(candidate)) continue;
+        const tile = game.tiles[`${candidate.y}-${candidate.x}` as `${number}-${number}`];
+        if (tile?.owned && tile.owner === owner && tile.content.type_ === "empty") {
+            return candidate;
         }
     }
-    return accessible;
+
+    return null;
 }
 
 function isInsideBoard(point: Point): boolean {

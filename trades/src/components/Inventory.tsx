@@ -20,7 +20,9 @@ function tileToIcon(tile: Tilable): string {
 		case "production":
 			return `/assets/${tile.production}-${tile.level}.svg`;
 		case "canal":
-			return `/assets/canal-${tile.canal}.svg`;
+			return tile.canal === "straight"
+				? "/assets/canal-straight-2x1.svg"
+				: "/assets/canal-corner.svg";
 		default:
 			throw new Error("Unknown tile type");
 	}
@@ -91,21 +93,17 @@ function InventoryItem({
 				}}
 			>
 				{isGoldProduction ? (
-					<GoldBars count={tile.level} size={16} />
+					<span style={{ display: "inline-flex", padding: 4 }}>
+						<GoldBars count={tile.level} size={16} />
+					</span>
 				) : tile.type_ === "canal" && tile.canal === "straight" ? (
 					<img
 						src={src}
 						alt={alt}
-						style={{ width: 64, height: 32, display: "block" }}
-					/>
-				) : tile.type_ === "canal" && tile.canal === "corner" ? (
-					<img
-						src={src}
-						alt={alt}
-						style={{ display: "block", transform: "rotate(180deg)" }}
+						style={{ width: 48, height: 24, display: "block" }}
 					/>
 				) : (
-					<img src={src} alt={alt} />
+					<img src={src} alt={alt} style={{ width: 28, height: 28, display: "block" }} />
 				)}
 				<span
 					style={{

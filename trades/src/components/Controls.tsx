@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import type { OwnedTile } from "../logic/Game";
+import type { State } from "../logic/engine";
 import { useGlobalContext } from "../logic/State";
 
 const SPEC_DOT_POSITIONS: Record<number, [number, number][]> = {
@@ -119,7 +121,7 @@ function SpeculativeDiceOverlay({ onDone }: { onDone: (roll: number) => void }) 
 								fontSize: 14,
 							}}
 						>
-							OK
+							{value === 3 || value === 4 ? "OK" : "Choose outcome"}
 						</button>
 					</div>
 				)}
@@ -127,6 +129,97 @@ function SpeculativeDiceOverlay({ onDone }: { onDone: (roll: number) => void }) 
 		</div>
 	);
 }
+
+function SpeculativeChoiceBanner({
+	state,
+	dispatch,
+}: {
+	state: State;
+	dispatch: (a: import("../logic/engine").Action) => void;
+}) {
+	const roll = state.speculativeInvestmentRoll;
+	if (roll === null || roll === 3 || roll === 4) return null;
+
+	const current = state.game.turn;
+	const tiles = state.game.tiles;
+	const dollarTiles = Object.entries(tiles).filter(
+		(entry): entry is [string, OwnedTile & { content: { type_: "production"; production: "dollar"; level: 1 | 2 | 3 } }] =>
+			entry[1].owned &&
+			entry[1].owner === current &&
+			entry[1].content.type_ === "production" &&
+			entry[1].content.production === "dollar",
+	);
+	const isDowngrade = roll === 1 || roll === 2;
+	const downgradeTiles = isDowngrade ? dollarTiles : [];
+	const allMax = !isDowngrade && dollarTiles.length > 0 && dollarTiles.every(([, t]) => t.content.level === 3);
+	const canTakeFree = !isDowngrade && (dollarTiles.length === 0 || allMax);
+
+	return (
+		<div
+			style={{
+				position: "fixed",
+				top: 0,
+				left: 0,
+				right: 0,
+				zIndex: 9999,
+				display: "flex",
+				alignItems: "center",
+				justifyContent: "center",
+				gap: 16,
+				padding: "10px 16px",
+				backgroundColor: "rgba(249, 168, 37, 0.95)",
+				borderBottom: "2px solid #e65100",
+				boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+				flexWrap: "wrap",
+			}}
+			role="status"
+			aria-live="polite"
+		>
+			<span style={{ fontWeight: 600, fontSize: 14, color: "#1a1a1a" }}>
+				Speculative Investment — {isDowngrade ? "Click a gold production tile on the board to downgrade or remove." : "Click a gold production tile on the board to upgrade, or use the button below for free +1."}
+			</span>
+			{isDowngrade && downgradeTiles.length === 0 && (
+				<button
+					type="button"
+					onClick={() => dispatch({ type: "SPECULATIVE_APPLY_CHOICE", payload: { action: "skip" } })}
+					style={{
+						padding: "6px 16px",
+						borderRadius: 8,
+						border: "none",
+						background: "#555",
+						color: "#fff",
+						cursor: "pointer",
+						fontWeight: 600,
+						fontSize: 13,
+					}}
+				>
+					Skip (no gold production)
+				</button>
+			)}
+			{!isDowngrade && canTakeFree && (
+				<button
+					type="button"
+					onClick={() =>
+						dispatch({ type: "SPECULATIVE_APPLY_CHOICE", payload: { action: "free_production" } })
+					}
+					style={{
+						padding: "6px 16px",
+						borderRadius: 8,
+						border: "none",
+						background: "#2e7d32",
+						color: "#fff",
+						cursor: "pointer",
+						fontWeight: 600,
+						fontSize: 13,
+					}}
+				>
+					Receive free +1 gold production tile
+				</button>
+			)}
+		</div>
+	);
+}
+
 import { hasPlayerSelectedWell, type TileKey } from "../logic/Game";
 import Inventory from "./Inventory";
 import RotationSelector from "./RotationSelector";
@@ -255,6 +348,9 @@ export default function Controls() {
 						setShowSpeculativeDice(false);
 					}}
 				/>
+			)}
+			{state.speculativeInvestmentRoll !== null && (
+				<SpeculativeChoiceBanner state={state} dispatch={dispatch} />
 			)}
 			{showBlackMarketPopup && (
 				<div

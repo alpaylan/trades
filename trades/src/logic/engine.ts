@@ -9,6 +9,7 @@ import {
 	findTradeRoutes,
 	CITY_HALLS,
 	game,
+	getStraightCanalSecondCell,
 	hasPlayerSelectedWell,
 	owned,
 	isRoadEligibleForCustoms,
@@ -238,6 +239,8 @@ export type State = {
 	cardShownByTimeSkip: boolean;
 	lastDrawnWasExtendedTimeline: boolean;
 	speculativeInvestmentResolved: Record<TileOwner, boolean>;
+	/** When set (1–2 or 5–6), player must choose which gold production to downgrade/upgrade or take free/skip. */
+	speculativeInvestmentRoll: number | null;
 	logisticBreakthroughPicks: number;
 	randomTilePurchasedThisTurn: boolean;
 	diceRoll: { active: boolean } | null;
@@ -295,6 +298,18 @@ function buildEventCardDeck(): readonly State["eventCardContent"][] {
 			deck.push(shuffled[j++]);
 		}
 	}
+	// Geçici: ilk 3 kartı sabit (test için): 1. black_friday, 2. extended_timeline, 3. speculative_investment
+	const swap = (arr: State["eventCardContent"][], a: number, b: number) => {
+		const t = arr[a];
+		arr[a] = arr[b];
+		arr[b] = t;
+	};
+	let i = deck.indexOf("black_friday");
+	if (i >= 0 && i !== 0) swap(deck, 0, i);
+	i = deck.indexOf("extended_timeline");
+	if (i >= 0 && i !== 1) swap(deck, 1, i);
+	i = deck.indexOf("speculative_investment");
+	if (i >= 0 && i !== 2) swap(deck, 2, i);
 	return deck;
 }
 
@@ -346,6 +361,7 @@ export const initialState = (): State => ({
 	lastDrawnWasExtendedTimeline: false,
 	logisticBreakthroughPicks: 0,
 	speculativeInvestmentResolved: initialSpeculativeInvestmentResolved(),
+	speculativeInvestmentRoll: null,
 	randomTilePurchasedThisTurn: false,
 	diceRoll: null,
 	history: [],
@@ -376,7 +392,15 @@ export type Action =
 	| { type: "SHOW_EVENT_CARD_PREVIEW" }
 	| { type: "START_DICE_ROLL"; payload: { price: number } }
 	| { type: "FINISH_DICE_ROLL"; payload: { tile: Tilable | null } }
-	| { type: "SPECULATIVE_ROLL"; payload: { roll: number } };
+	| { type: "SPECULATIVE_ROLL"; payload: { roll: number } }
+	| {
+			type: "SPECULATIVE_APPLY_CHOICE";
+			payload:
+				| { action: "downgrade"; x: number; y: number }
+				| { action: "upgrade"; x: number; y: number }
+				| { action: "free_production" }
+				| { action: "skip" };
+	  };
 
 export const UI_ONLY_ACTION_TYPES: Action["type"][] = [
 	"SELECT_TILE",
@@ -404,6 +428,7 @@ export const AUTHORITATIVE_ACTION_TYPES: Action["type"][] = [
 	"SELECT_WELL",
 	"DISMISS_EVENT_CARD",
 	"SPECULATIVE_ROLL",
+	"SPECULATIVE_APPLY_CHOICE",
 ];
 
 export const reducer = (state: State, action: Action): State => {
@@ -524,13 +549,12 @@ export const reducer = (state: State, action: Action): State => {
 			}
 			const currentTurn = state.game.turn;
 			const actionsUsedThisTurn = state.actionsUsedThisTurn;
-			const endedThisRound =
-				actionsUsedThisTurn === 0
-					? {
-							...state.endedThisRound,
-							[currentTurn]: true,
-						}
-					: state.endedThisRound;
+			// Pass = End Turn with 0 moves used (Actions left: 2). Only then is the player "done" for the round. If they used 1 or 2 moves they get another turn when order comes back. Once passed, stay passed.
+			const passed = actionsUsedThisTurn === 0;
+			const endedThisRound = {
+				...state.endedThisRound,
+				[currentTurn]: state.endedThisRound[currentTurn] || passed,
+			};
 			const allEndedThisRound = TILE_OWNERS.every((owner) => endedThisRound[owner]);
 			const purchasedClearedForCurrent: PurchasedThisTurn = {
 				...state.purchasedThisTurn,
@@ -600,6 +624,7 @@ export const reducer = (state: State, action: Action): State => {
 						activeEventEffects: { noRoad: false, blackFriday: false, gift: false, luckyStreak: false, laborRevolt: false, rapidInflation: false, safePassage: false, brokenLogistics: false, bureaucraticDelay: false, logisticBreakthrough: false, marketHoliday: false, supplyChainShortage: false, materialSurplus: false, speculativeInvestment: false, blackMarketScams: false, merchantsLottery: false, robinHoodsToll: false, reversedCurrent: false, internationalTradeTreaty: false, economicIsolation: false },
 						giftReceivedThisRound: initialGiftReceivedThisRound(),
 						speculativeInvestmentResolved: initialSpeculativeInvestmentResolved(),
+						speculativeInvestmentRoll: null,
 						history: historyState,
 					};
 				}
@@ -1011,27 +1036,19 @@ export const reducer = (state: State, action: Action): State => {
 				return state;
 			}
 
-			const isStraightCanal = tile.type_ === "canal" && tile.canal === "straight";
-			const rot = tile.type_ === "canal" ? tile.rotation : 0;
-			// Second cell for straight: same logic as road – use accessible direction (canal reaches from which side)
-			let x2 = x;
-			let y2 = y;
-			if (isStraightCanal && accessibleFromCanal) {
-				if (rot === 0 || rot === 180) {
-					x2 = accessibleFromCanal.left ? x - 1 : x + 1;
-				} else {
-					y2 = accessibleFromCanal.up ? y - 1 : y + 1;
-				}
-			}
-			if (isStraightCanal) {
-				const secondTile = state.game.tiles[`${y2}-${x2}`];
-				if (
-					!secondTile?.owned ||
-					secondTile.owner !== user.color ||
-					secondTile.content.type_ !== "empty"
-				) {
-					return state;
-				}
+			const straightCanalSecondCell =
+				tile.type_ === "canal" && tile.canal === "straight" && accessibleFromCanal
+					? getStraightCanalSecondCell(
+							state.game,
+							user.color,
+							{ x, y },
+							accessibleFromCanal,
+							tile.rotation,
+						)
+					: null;
+
+			if (tile.type_ === "canal" && tile.canal === "straight" && !straightCanalSecondCell) {
+				return state;
 			}
 
 			let inventoryKey: TileKey;
@@ -1068,10 +1085,10 @@ export const reducer = (state: State, action: Action): State => {
 					owner: user.color,
 				},
 			};
-			if (isStraightCanal) {
-				newTiles[`${y2}-${x2}`] = {
-					x: x2,
-					y: y2,
+			if (tile.type_ === "canal" && tile.canal === "straight" && straightCanalSecondCell) {
+				newTiles[`${straightCanalSecondCell.y}-${straightCanalSecondCell.x}`] = {
+					x: straightCanalSecondCell.x,
+					y: straightCanalSecondCell.y,
 					content: tile,
 					owned: true,
 					owner: user.color,
@@ -1097,9 +1114,7 @@ export const reducer = (state: State, action: Action): State => {
 						const key = `road:${tile.road}:${rotation}` as TileKey;
 						return user.inventory[key] > (key === inventoryKey ? 1 : 0);
 					})
-				: tile.type_ === "canal"
-					? inventoryCount > 0
-					: inventoryCount > 0;
+				: inventoryCount > 0;
 
 			let purchasedThisTurn: PurchasedThisTurn = state.purchasedThisTurn;
 			if (fromPurchaseThisTurn) {
@@ -1176,9 +1191,9 @@ export const reducer = (state: State, action: Action): State => {
 					lastRandomRoll: null,
 					actionsUsedThisTurn: 0,
 					randomTilePurchasedThisTurn: false,
-					endedThisRound: initialEndedThisRound(),
-					purchasedThisTurn: initialPurchasedThisTurn(),
-					eventCardsRemaining: state.eventCardsRemaining,
+						endedThisRound: initialEndedThisRound(),
+						purchasedThisTurn: initialPurchasedThisTurn(),
+						eventCardsRemaining: state.eventCardsRemaining,
 					cardShownByTimeSkip: true,
 					showEventCard: drawCard,
 					eventCardContent,
@@ -1209,6 +1224,7 @@ export const reducer = (state: State, action: Action): State => {
 					lastDrawnEventCard: eventCardContent,
 					lastDrawnWasExtendedTimeline: false,
 					speculativeInvestmentResolved: initialSpeculativeInvestmentResolved(),
+					speculativeInvestmentRoll: null,
 					logisticBreakthroughPicks: 0,
 					blackMarketScamsRemoved: initialBlackMarketScamsRemoved(),
 					blackMarketScamsPopupShown: allBlackMarketScamsPopupShown(),
@@ -1399,6 +1415,7 @@ export const reducer = (state: State, action: Action): State => {
 				lastDrawnEventCard: isExtendedTimeline ? state.lastDrawnEventCard : state.eventCardContent,
 				lastDrawnWasExtendedTimeline: isExtendedTimeline,
 				speculativeInvestmentResolved: activeEventEffects.speculativeInvestment ? initialSpeculativeInvestmentResolved() : state.speculativeInvestmentResolved,
+				speculativeInvestmentRoll: null,
 				logisticBreakthroughPicks: 0,
 				blackMarketScamsRemoved: blackMarketScamsActive ? blackMarketScamsRemoved : initialBlackMarketScamsRemoved(),
 				blackMarketScamsPopupShown: blackMarketScamsActive ? initialBlackMarketScamsPopupShown() : allBlackMarketScamsPopupShown(),
@@ -1540,9 +1557,39 @@ export const reducer = (state: State, action: Action): State => {
 			if (state.speculativeInvestmentResolved[current]) {
 				return state;
 			}
+			// 3–4: no change, resolve immediately
+			if (roll === 3 || roll === 4) {
+				return {
+					...state,
+					speculativeInvestmentResolved: {
+						...state.speculativeInvestmentResolved,
+						[current]: true,
+					},
+					history: historyState,
+				};
+			}
+			// 1–2 or 5–6: store roll so player can choose which tile to downgrade/upgrade (or skip/free)
+			return {
+				...state,
+				speculativeInvestmentRoll: roll,
+				history: historyState,
+			};
+		})
+		.with({ type: "SPECULATIVE_APPLY_CHOICE" }, (innerAction) => {
+			const payload = innerAction.payload;
+			if (!state.activeEventEffects?.speculativeInvestment) {
+				return state;
+			}
+			const current = state.game.turn;
+			if (state.speculativeInvestmentResolved[current]) {
+				return state;
+			}
+			const roll = state.speculativeInvestmentRoll;
+			if (roll === null || (roll >= 3 && roll <= 4)) {
+				return state;
+			}
 
 			let gameState = state.game;
-
 			const tiles = gameState.tiles;
 			const entries = Object.entries(tiles).filter(
 				(entry): entry is [string, OwnedTile & { content: ProductionTile }] =>
@@ -1552,12 +1599,29 @@ export const reducer = (state: State, action: Action): State => {
 					entry[1].content.production === "dollar",
 			);
 
-			const downgradeOne = () => {
-				if (entries.length === 0) return;
-				const sorted = [...entries].sort(
-					([, a], [, b]) => (b.content.level as number) - (a.content.level as number),
-				);
-				const [key, tile] = sorted[0];
+			if (payload.action === "skip") {
+				return {
+					...state,
+					speculativeInvestmentRoll: null,
+					speculativeInvestmentResolved: {
+						...state.speculativeInvestmentResolved,
+						[current]: true,
+					},
+					history: historyState,
+				};
+			}
+
+			if (payload.action === "downgrade" && (roll === 1 || roll === 2)) {
+				const key = `${payload.y}-${payload.x}`;
+				const tile = tiles[key];
+				if (
+					!tile?.owned ||
+					tile.owner !== current ||
+					tile.content.type_ !== "production" ||
+					tile.content.production !== "dollar"
+				) {
+					return state;
+				}
 				const level = tile.content.level;
 				if (level > 1) {
 					gameState = {
@@ -1585,41 +1649,31 @@ export const reducer = (state: State, action: Action): State => {
 						},
 					};
 				}
-			};
-
-			const giveFreeProduction = () => {
-				const user = gameState.users[current];
-				const freeTile: Tilable = {
-					type_: "production",
-					production: "dollar",
-					level: 1,
-				} as const;
-				const key = toKey(freeTile);
-				gameState = {
-					...gameState,
-					users: {
-						...gameState.users,
-						[current]: {
-							...user,
-							inventory: {
-								...user.inventory,
-								[key]: (user.inventory[key] ?? 0) + 1,
-							},
-						},
+				const updatedGame = updateUserProduction(gameState, current);
+				return {
+					...state,
+					game: updatedGame,
+					speculativeInvestmentRoll: null,
+					speculativeInvestmentResolved: {
+						...state.speculativeInvestmentResolved,
+						[current]: true,
 					},
+					history: historyState,
 				};
-			};
+			}
 
-			const upgradeOrFree = () => {
-				const upgradable = entries.filter(([, t]) => t.content.level < 3);
-				if (upgradable.length === 0) {
-					giveFreeProduction();
-					return;
+			if (payload.action === "upgrade" && (roll === 5 || roll === 6)) {
+				const key = `${payload.y}-${payload.x}`;
+				const tile = tiles[key];
+				if (
+					!tile?.owned ||
+					tile.owner !== current ||
+					tile.content.type_ !== "production" ||
+					tile.content.production !== "dollar" ||
+					tile.content.level >= 3
+				) {
+					return state;
 				}
-				const sorted = [...upgradable].sort(
-					([, a], [, b]) => (a.content.level as number) - (b.content.level as number),
-				);
-				const [key, tile] = sorted[0];
 				const level = tile.content.level;
 				gameState = {
 					...gameState,
@@ -1634,24 +1688,57 @@ export const reducer = (state: State, action: Action): State => {
 						},
 					},
 				};
-			};
-
-			if (roll === 1 || roll === 2) {
-				downgradeOne();
-			} else if (roll === 5 || roll === 6) {
-				upgradeOrFree();
+				const updatedGame = updateUserProduction(gameState, current);
+				return {
+					...state,
+					game: updatedGame,
+					speculativeInvestmentRoll: null,
+					speculativeInvestmentResolved: {
+						...state.speculativeInvestmentResolved,
+						[current]: true,
+					},
+					history: historyState,
+				};
 			}
 
-			const updatedGame = updateUserProduction(gameState, current);
+			if (payload.action === "free_production" && (roll === 5 || roll === 6)) {
+				const upgradable = entries.filter(([, t]) => t.content.level < 3);
+				if (upgradable.length > 0) {
+					return state; // must upgrade a tile if any is upgradable
+				}
+				const user = gameState.users[current];
+				const freeTile: Tilable = {
+					type_: "production",
+					production: "dollar",
+					level: 1,
+				} as const;
+				const invKey = toKey(freeTile);
+				gameState = {
+					...gameState,
+					users: {
+						...gameState.users,
+						[current]: {
+							...user,
+							inventory: {
+								...user.inventory,
+								[invKey]: (user.inventory[invKey] ?? 0) + 1,
+							},
+						},
+					},
+				};
+				return {
+					...state,
+					game: gameState,
+					speculativeInvestmentRoll: null,
+					speculativeInvestmentResolved: {
+						...state.speculativeInvestmentResolved,
+						[current]: true,
+					},
+					history: historyState,
+				};
+			}
 
-			return {
-				...state,
-				game: updatedGame,
-				speculativeInvestmentResolved: {
-					...state.speculativeInvestmentResolved,
-					[current]: true,
-				},
-			};
+			return state;
 		})
 		.exhaustive() as State;
 };

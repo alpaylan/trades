@@ -8,6 +8,7 @@ import {
 	CANAL_TYPES,
 	canPlaceWell,
 	directionMatch,
+	getStraightCanalSecondCell,
 	hasPlayerSelectedWell,
 	isRoadEligibleForCustoms,
 	type OwnedTile,
@@ -47,6 +48,9 @@ const productionTile = (
 const roadTile = (roadType: RoadType, rotation: RoadRotation): Tilable =>
 	road(roadType, rotation);
 
+const CANAL_STRAIGHT_ROTATIONS: RoadRotation[] = [0, 90];
+const CANAL_CORNER_ROTATIONS: RoadRotation[] = [0, 90, 180, 270];
+
 function buyCandidates(): Action[] {
 	const moves: Action[] = [];
 	for (const action of ACTION_TYPES) {
@@ -85,9 +89,6 @@ function buyCandidates(): Action[] {
 	return moves;
 }
 
-const CANAL_STRAIGHT_ROTATIONS: RoadRotation[] = [0, 90];
-const CANAL_CORNER_ROTATIONS: RoadRotation[] = [0, 90, 180, 270];
-
 function placeCandidates(state: State): Action[] {
 	const owner = state.game.turn;
 	const user = state.game.users[owner];
@@ -110,12 +111,19 @@ function placeCandidates(state: State): Action[] {
 			for (const acc of canalAccessibles) {
 				for (const rotation of rotations) {
 					const tile = canal(canalType, rotation);
-					if (directionMatch(accessibleDirections(tile), acc)) {
-						moves.push({
-							type: "PLACE_TILE",
-							payload: { x: acc.x, y: acc.y, tile },
-						});
+					if (!directionMatch(accessibleDirections(tile), acc)) {
+						continue;
 					}
+					if (
+						canalType === "straight" &&
+						!getStraightCanalSecondCell(state.game, owner, { x: acc.x, y: acc.y }, acc, rotation)
+					) {
+						continue;
+					}
+					moves.push({
+						type: "PLACE_TILE",
+						payload: { x: acc.x, y: acc.y, tile },
+					});
 				}
 			}
 			continue;
