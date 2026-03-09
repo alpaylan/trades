@@ -1,32 +1,7 @@
 import { useState } from "react";
-import { canal, hasPlayerSelectedWell, type ResourceCollection, type Tilable, road } from "../logic/Game";
+import { bridge, bridgeOnly, canal, hasPlayerSelectedWell, type ResourceCollection, type Tilable, road } from "../logic/Game";
 import { useGlobalContext } from "../logic/State";
 import DiceRoll from "./DiceRoll";
-
-const GOLD_BAR_SRC = "/assets/gold-bar.svg";
-
-function GoldBars({ count, size = 12 }: { count: number; size?: number }) {
-	return (
-		<span
-			style={{
-				display: "inline-flex",
-				flexWrap: "wrap",
-				gap: 1,
-				alignItems: "center",
-			}}
-		>
-			{Array.from({ length: count }, (_, i) => (
-				<img
-					key={i}
-					src={GOLD_BAR_SRC}
-					alt=""
-					style={{ width: size, height: size / 2 }}
-					aria-hidden="true"
-				/>
-			))}
-		</span>
-	);
-}
 
 function StoreItem({
 	resources,
@@ -34,7 +9,6 @@ function StoreItem({
 	item,
 	icon,
 	text,
-	showGoldBars,
 	halfSize,
 	iconStyle,
 }: {
@@ -43,7 +17,6 @@ function StoreItem({
 	item: Tilable;
 	icon: string;
 	text: string;
-	showGoldBars?: { iconCount: number };
 	/** When true, button is half height (half of a normal square). */
 	halfSize?: boolean;
 	/** Optional style for the icon img (e.g. 2×1 for straight canal). */
@@ -76,9 +49,7 @@ function StoreItem({
 		isFreeActionTile || isFreeRoadTile ? 0 : pricedWithDiscounts;
 	const priceTag = blackFriday ? " — Black Friday!" : rapidInflation ? " — Rapid Inflation!" : "";
 	const freeTag = isFreeActionTile ? " — Free gift!" : isFreeRoadTile ? " — Logistic Breakthrough!" : "";
-	const tooltip = showGoldBars
-		? `${text} (cost: ${displayPrice} gold${priceTag}${freeTag})`
-		: `${text} (cost: ${displayPrice}${priceTag}${freeTag})`;
+	const tooltip = `${text} (cost: ${displayPrice}${priceTag}${freeTag})`;
 
 	const disabled = resources.dollar < displayPrice || !canAct;
 
@@ -99,25 +70,21 @@ function StoreItem({
 					: undefined
 			}
 		>
-			{showGoldBars ? (
-				<GoldBars count={showGoldBars.iconCount} size={halfSize ? 8 : 16} />
-			) : (
-				<img
-					src={icon}
-					alt={`${item.type_} icon`}
-					title={tooltip}
-					style={
-						halfSize
-							? { maxHeight: "0.9rem", width: "auto", display: "block" }
-							: {
-									width: iconStyle?.width ?? 28,
-									height: iconStyle?.height ?? 28,
-									display: "block",
-									...iconStyle,
-								}
-					}
-				/>
-			)}
+			<img
+				src={icon}
+				alt={`${item.type_} icon`}
+				title={tooltip}
+				style={
+					halfSize
+						? { maxHeight: "0.9rem", width: "auto", display: "block" }
+						: {
+								width: iconStyle?.width ?? 28,
+								height: iconStyle?.height ?? 28,
+								display: "block",
+								...iconStyle,
+							}
+				}
+			/>
 			<span style={halfSize ? { fontSize: "0.7rem" } : undefined}>{displayPrice}</span>
 		</button>
 	);
@@ -402,6 +369,22 @@ export default function Store({
 					icon="/assets/canal-corner.svg"
 					text="Water canal corner (1×1)"
 				/>
+				<StoreItem
+					resources={resources}
+					price={5}
+					item={bridgeOnly()}
+					icon="/assets/bridge-only.svg"
+					text="Bridge add-on (convert straight canal to bridge) (5 gold)"
+					iconStyle={{ width: 28, height: 28 }}
+				/>
+				<StoreItem
+					resources={resources}
+					price={8}
+					item={bridge(0)}
+					icon="/assets/bridge.svg"
+					text="Bridge (road over canal) (8 gold)"
+					iconStyle={{ width: 28, height: 28 }}
+				/>
 			</div>
 			<div
 				id="production-tiles"
@@ -425,7 +408,6 @@ export default function Store({
 					}}
 					icon="/assets/dollar-1.svg"
 					text="+1 gold production (5 gold)"
-					showGoldBars={{ iconCount: 1 }}
 				/>
 				<StoreItem
 					resources={resources}
@@ -437,7 +419,6 @@ export default function Store({
 					}}
 					icon="/assets/dollar-2.svg"
 					text="+2 gold production (15 gold)"
-					showGoldBars={{ iconCount: 2 }}
 				/>
 				<StoreItem
 					resources={resources}
@@ -449,7 +430,6 @@ export default function Store({
 					}}
 					icon="/assets/dollar-3.svg"
 					text="+3 gold production (30 gold)"
-					showGoldBars={{ iconCount: 3 }}
 				/>
 			</div>
 		</div>

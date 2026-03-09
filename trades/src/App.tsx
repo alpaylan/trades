@@ -2,6 +2,7 @@ import "./App.css";
 import { useMemo, useState } from "react";
 import Board from "./components/Board";
 import Controls from "./components/Controls";
+import ErrorBoundary from "./components/ErrorBoundary";
 import EventCardOverlay from "./components/EventCardOverlay";
 import EventDeck from "./components/EventDeck";
 import PlayerBalances from "./components/PlayerBalances";
@@ -53,7 +54,9 @@ function App() {
 					</button>
 				</div>
 				<GlobalProvider>
-					<GameLayout />
+					<ErrorBoundary>
+						<GameLayout />
+					</ErrorBoundary>
 				</GlobalProvider>
 			</>
 		);
@@ -160,7 +163,9 @@ function App() {
 				</div>
 			) : null}
 			<GlobalProvider multiplayer={multiplayer.room?.started ? bridge : undefined}>
-				<GameLayout />
+				<ErrorBoundary>
+					<GameLayout />
+				</ErrorBoundary>
 			</GlobalProvider>
 		</>
 	);

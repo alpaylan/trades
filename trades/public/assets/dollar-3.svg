@@ -1,5 +1,14 @@
-<svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <rect x="0" y="0" width="64" height="64" fill="#ffffff"/>
-  <rect x="2" y="2" width="60" height="60" rx="8" ry="8" fill="none" stroke="#1e1e1e" stroke-width="2"/>
-  <text x="32" y="40" font-size="26" font-family="system-ui, sans-serif" font-weight="bold" fill="#2f9e44" text-anchor="middle">$$$</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <defs>
+    <linearGradient id="g3" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffd700"/>
+      <stop offset="50%" stop-color="#ffec8b"/>
+      <stop offset="100%" stop-color="#daa520"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="32" height="32" fill="#ffffff"/>
+  <rect x="1" y="1" width="30" height="30" rx="5" ry="5" fill="none" stroke="#1e1e1e" stroke-width="2"/>
+  <path d="M10 6 L22 6 L20.5 12 L11.5 12 Z" fill="url(#g3)" stroke="#b8860b" stroke-width="0.6"/>
+  <path d="M6 13 L18 13 L16.5 19 L7.5 19 Z" fill="url(#g3)" stroke="#b8860b" stroke-width="0.6"/>
+  <path d="M14 19 L26 19 L24.5 25 L15.5 25 Z" fill="url(#g3)" stroke="#b8860b" stroke-width="0.6"/>
 </svg>

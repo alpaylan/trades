@@ -101,12 +101,48 @@ export default function Tile({
 		tile.owner === current &&
 		canPlaceWell(state.game, current, tile.x, tile.y);
 
+	const accessibleAndFree =
+		accessible &&
+		state.selected &&
+		((state.selected.type_ === "road" &&
+			directionMatch(accessibleDirections(state.selected), accessible)) ||
+			(state.selected.type_ === "production" && notInCenter(accessible)));
+
+	const straightCanalSecondCell =
+		state.selected?.type_ === "canal" &&
+		state.selected.canal === "straight" &&
+		canalAccessible
+			? getStraightCanalSecondCell(
+					state.game,
+					current,
+					{ x: tile.x, y: tile.y },
+					canalAccessible,
+					state.selected.rotation,
+				)
+			: null;
+
+	const canalAccessibleAndFree =
+		canalAccessible &&
+		(state.selected?.type_ === "canal" || state.selected?.type_ === "bridge") &&
+		directionMatch(accessibleDirections(state.selected), canalAccessible) &&
+		(state.selected?.type_ !== "canal" || state.selected?.canal !== "straight" || !!straightCanalSecondCell);
+	const bridgePlaceableOnStraightCanal =
+		state.selected?.type_ === "bridge_only" &&
+		tile.owned &&
+		tile.owner === current &&
+		tile.content.type_ === "canal" &&
+		tile.content.canal === "straight";
+
 	const tooltip = match(tile.content)
 		.with({ type_: "empty" }, () =>
 			canClickWell
 				? "Select as your water well"
 				: state.selected?.type_ === "canal" && canalAccessible
 					? "Place water canal"
+					: state.selected?.type_ === "bridge" && canalAccessible
+						? "Place bridge"
+					: state.selected?.type_ === "bridge_only"
+						? "Bridge add-on: click a straight canal tile to convert"
 				: state.selected?.type_ === "road" &&
 						accessible &&
 						state.activeEventEffects?.noRoad
@@ -130,7 +166,12 @@ export default function Tile({
 						(content.customs ? " - customs gate" : ""),
 		)
 		.with({ type_: "well" }, () => "Water well")
-		.with({ type_: "canal" }, (content) => `Water canal (${content.canal})`)
+		.with({ type_: "canal" }, (content) =>
+			state.selected?.type_ === "bridge_only" && bridgePlaceableOnStraightCanal
+				? "Replace with bridge"
+				: `Water canal (${content.canal})`,
+		)
+		.with({ type_: "bridge" }, () => "Bridge (road over canal)")
 		.with({ type_: "hall" }, (content) => `City hall (level ${content.level})`)
 		.with(
 			{ type_: "production" },
@@ -138,32 +179,6 @@ export default function Tile({
 				`Production (${content.production}) - level ${content.level}`,
 		)
 		.otherwise(() => "Tile");
-
-	const accessibleAndFree =
-		accessible &&
-		state.selected &&
-		((state.selected.type_ === "road" &&
-			directionMatch(accessibleDirections(state.selected), accessible)) ||
-			(state.selected.type_ === "production" && notInCenter(accessible)));
-
-	const straightCanalSecondCell =
-		state.selected?.type_ === "canal" &&
-		state.selected.canal === "straight" &&
-		canalAccessible
-			? getStraightCanalSecondCell(
-					state.game,
-					current,
-					{ x: tile.x, y: tile.y },
-					canalAccessible,
-					state.selected.rotation,
-				)
-			: null;
-
-	const canalAccessibleAndFree =
-		canalAccessible &&
-		state.selected?.type_ === "canal" &&
-		directionMatch(accessibleDirections(state.selected), canalAccessible) &&
-		(state.selected.canal !== "straight" || !!straightCanalSecondCell);
 
 	let canClick = false;
 	if (canClickWell) {
@@ -253,6 +268,18 @@ export default function Tile({
 				!!canalAccessibleAndFree &&
 				(userInventory[toKey(state.selected)] ?? 0) > 0;
 		}
+		if (state.selected.type_ === "bridge") {
+			canClick =
+				canClick &&
+				!!canalAccessibleAndFree &&
+				(userInventory[toKey(state.selected)] ?? 0) > 0;
+		}
+		if (state.selected.type_ === "bridge_only") {
+			canClick =
+				canClick &&
+				!!bridgePlaceableOnStraightCanal &&
+				(userInventory[toKey(state.selected)] ?? 0) > 0;
+		}
 	}
 	if (speculativeTarget) {
 		canClick = true;
@@ -260,7 +287,7 @@ export default function Tile({
 
 	return (
 		<button
-			className={`tile ${accessibleAndFree || canalAccessibleAndFree || canClickWell || speculativeTarget ? "pulsing" : ""}`}
+			className={`tile ${accessibleAndFree || canalAccessibleAndFree || bridgePlaceableOnStraightCanal || canClickWell || speculativeTarget ? "pulsing" : ""}`}
 			type="button"
 			disabled={!canClick}
 			title={
@@ -272,11 +299,11 @@ export default function Tile({
 			}
 			style={{
 				backgroundColor:
-					tile.content.type_ === "canal"
+					tile.content.type_ === "canal" || tile.content.type_ === "bridge"
 						? "#b0bec5"
 						: tile.owner,
 				opacity:
-					tile.content.type_ === "canal"
+					tile.content.type_ === "canal" || tile.content.type_ === "bridge"
 						? 1
 						: tile.content.type_ === "hall"
 							? 1
@@ -309,10 +336,17 @@ export default function Tile({
 					dispatch({ type: "SELECT_WELL", payload: { x: tile.x, y: tile.y } });
 					return;
 				}
-				if (canalAccessibleAndFree && state.selected?.type_ === "canal") {
+				if (canalAccessibleAndFree && (state.selected?.type_ === "canal" || state.selected?.type_ === "bridge")) {
 					dispatch({
 						type: "PLACE_TILE",
 						payload: { x: tile.x, y: tile.y, tile: state.selected },
+					});
+					return;
+				}
+				if (bridgePlaceableOnStraightCanal && state.selected?.type_ === "bridge_only") {
+					dispatch({
+						type: "REPLACE_CANAL_WITH_BRIDGE",
+						payload: { x: tile.x, y: tile.y },
 					});
 					return;
 				}
@@ -373,6 +407,7 @@ export default function Tile({
 								{ type_: "road" },
 								{ type_: "production" },
 								{ type_: "canal" },
+								{ type_: "bridge" },
 							),
 							(tile_) => {
 								if (accessibleAndFree || canalAccessibleAndFree) {
@@ -383,6 +418,9 @@ export default function Tile({
 								}
 							},
 						)
+						.with({ type_: "bridge_only" }, () => {
+							// bridge_only only applies on straight canal via bridgePlaceableOnStraightCanal (handled above)
+						})
 						.exhaustive();
 				}
 			}}
@@ -576,45 +614,23 @@ export default function Tile({
 						);
 					return <>{inner}</>;
 				})
+				.with({ type_: "bridge" }, (content) => (
+					<img
+						src="/assets/bridge.svg"
+						alt="bridge"
+						style={{
+							width: "32px",
+							height: "32px",
+							transform: `rotate(${content.rotation}deg)`,
+						}}
+					/>
+				))
 				.with({ type_: "production" }, (content) =>
-					content.production === "dollar" ? (
-						<span
-							style={{
-								position: "absolute",
-								inset: 0,
-								display: "flex",
-								alignItems: "center",
-								justifyContent: "center",
-								backgroundColor: "white",
-							}}
-						>
-							<span
-								style={{
-									display: "flex",
-									flexWrap: "wrap",
-									alignItems: "center",
-									justifyContent: "center",
-									gap: 1,
-								}}
-							>
-								{Array.from({ length: content.level }, (_, i) => (
-									<img
-										key={i}
-										src="/assets/gold-bar.svg"
-										alt=""
-										style={{ width: 12, height: 6 }}
-										aria-hidden="true"
-									/>
-								))}
-							</span>
-						</span>
-					) : (
-						<img
+					<img
 							src={`/assets/${content.production}-${content.level}.svg`}
-							alt={`${content.production} icon`}
+							alt={`${content.production} level ${content.level}`}
 							style={{ width: "32px", height: "32px" }}
-						/>
-					),
+						/>,
 				)
 				.otherwise(() => (
 					<></>

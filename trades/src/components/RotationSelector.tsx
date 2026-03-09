@@ -4,29 +4,40 @@ import { useGlobalContext } from "../logic/State";
 export default function RotationSelector() {
 	const { state, dispatch } = useGlobalContext();
 
-	const isRoad = state.selected?.type_ === "road";
-	const isCanal = state.selected?.type_ === "canal";
-	if (!state.selected || (!isRoad && !isCanal)) {
+	const selected = state.selected;
+	const isRoad = selected?.type_ === "road";
+	const isCanal = selected?.type_ === "canal";
+	const isBridge = selected?.type_ === "bridge";
+	// bridge_only has no rotation; only road, canal, bridge get rotation selector
+	if (!selected || (!isRoad && !isCanal && !isBridge)) {
 		return null;
 	}
 	// Crossroad looks the same at every rotation — no need to choose
-	if (isRoad && state.selected.road === "plus") {
+	if (selected.type_ === "road" && selected.road === "plus") {
 		return null;
 	}
-	// Straight road (i) and straight canal: only 0° and 90°
-	const rotations: RoadRotation[] = isCanal
-		? state.selected.canal === "straight"
+	// Straight road (i), straight canal, bridge: only 0° and 90°
+	const rotations: RoadRotation[] =
+		selected.type_ === "bridge"
 			? [0, 90]
-			: [0, 90, 180, 270]
-		: state.selected.road === "i"
-			? [0, 90]
-			: [...ROAD_ROTATIONS];
+			: selected.type_ === "canal"
+				? selected.canal === "straight"
+					? [0, 90]
+					: [0, 90, 180, 270]
+				: selected.type_ === "road"
+					? selected.road === "i"
+						? [0, 90]
+						: [...ROAD_ROTATIONS]
+					: [];
+	const rot = "rotation" in selected ? selected.rotation : 0;
 	const effectiveRotation =
-		isRoad && state.selected.road === "i" && (state.selected.rotation === 180 || state.selected.rotation === 270)
-			? (state.selected.rotation === 180 ? 0 : 90)
-			: isCanal && state.selected.canal === "straight" && (state.selected.rotation === 180 || state.selected.rotation === 270)
-				? (state.selected.rotation === 180 ? 0 : 90)
-				: state.selected.rotation;
+		selected.type_ === "road" && selected.road === "i" && (rot === 180 || rot === 270)
+			? rot === 180 ? 0 : 90
+			: selected.type_ === "canal" && selected.canal === "straight" && (rot === 180 || rot === 270)
+				? rot === 180 ? 0 : 90
+				: selected.type_ === "bridge" && (rot === 180 || rot === 270)
+					? rot === 180 ? 0 : 90
+					: rot;
 
 	return (
 		<div
@@ -55,9 +66,9 @@ export default function RotationSelector() {
 				}}
 				aria-hidden="true"
 			>
-				{isCanal ? (
+				{selected.type_ === "bridge" ? (
 					<img
-						src={`/assets/canal-${state.selected.canal}.svg`}
+						src="/assets/bridge.svg"
 						alt=""
 						style={{
 							width: 14,
@@ -65,9 +76,9 @@ export default function RotationSelector() {
 							transform: `rotate(${effectiveRotation}deg)`,
 						}}
 					/>
-				) : (
+				) : selected.type_ === "canal" ? (
 					<img
-						src={`/assets/road-${state.selected.road}.svg`}
+						src={`/assets/canal-${selected.canal}.svg`}
 						alt=""
 						style={{
 							width: 14,
@@ -75,13 +86,24 @@ export default function RotationSelector() {
 							transform: `rotate(${effectiveRotation}deg)`,
 						}}
 					/>
-				)}
+				) : selected.type_ === "road" ? (
+					<img
+						src={`/assets/road-${selected.road}.svg`}
+						alt=""
+						style={{
+							width: 14,
+							height: 14,
+							transform: `rotate(${effectiveRotation}deg)`,
+						}}
+					/>
+				) : null}
 			</span>
 			<div style={{ display: "inline-flex", gap: "4px", flexWrap: "wrap" }}>
 				{rotations.map((rotation) => {
 					const isSelected =
-						(isRoad && state.selected.type_ === "road" && effectiveRotation === rotation) ||
-						(isCanal && state.selected.type_ === "canal" && effectiveRotation === rotation);
+						(selected.type_ === "road" && effectiveRotation === rotation) ||
+						(selected.type_ === "canal" && effectiveRotation === rotation) ||
+						(selected.type_ === "bridge" && effectiveRotation === rotation);
 					return (
 						<button
 							key={rotation}

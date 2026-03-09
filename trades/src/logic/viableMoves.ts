@@ -4,6 +4,7 @@ import {
 	ACTION_TYPES,
 	accessibleCanalTiles,
 	accessibleDirections,
+	bridge,
 	canal,
 	CANAL_TYPES,
 	canPlaceWell,
@@ -125,6 +126,36 @@ function placeCandidates(state: State): Action[] {
 						payload: { x: acc.x, y: acc.y, tile },
 					});
 				}
+			}
+			continue;
+		}
+		if (key === "bridge") {
+			for (const acc of canalAccessibles) {
+				for (const rotation of CANAL_STRAIGHT_ROTATIONS) {
+					const tile = bridge(rotation);
+					if (!directionMatch(accessibleDirections(tile), acc)) continue;
+					moves.push({
+						type: "PLACE_TILE",
+						payload: { x: acc.x, y: acc.y, tile },
+					});
+				}
+			}
+			continue;
+		}
+		if (key === "bridge_only") {
+			for (const tile of Object.values(state.game.tiles)) {
+				if (
+					!tile.owned ||
+					tile.owner !== owner ||
+					tile.content.type_ !== "canal" ||
+					tile.content.canal !== "straight"
+				) {
+					continue;
+				}
+				moves.push({
+					type: "REPLACE_CANAL_WITH_BRIDGE",
+					payload: { x: tile.x, y: tile.y },
+				});
 			}
 			continue;
 		}

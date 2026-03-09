@@ -9,8 +9,6 @@ import {
 } from "../logic/Game";
 import { useGlobalContext } from "../logic/State";
 
-const GOLD_BAR_SRC = "/assets/gold-bar.svg";
-
 function tileToIcon(tile: Tilable): string {
 	switch (tile.type_) {
 		case "action":
@@ -23,32 +21,13 @@ function tileToIcon(tile: Tilable): string {
 			return tile.canal === "straight"
 				? "/assets/canal-straight-2x1.svg"
 				: "/assets/canal-corner.svg";
+		case "bridge":
+			return "/assets/bridge.svg";
+		case "bridge_only":
+			return "/assets/bridge-only.svg";
 		default:
 			throw new Error("Unknown tile type");
 	}
-}
-
-function GoldBars({ count, size = 14 }: { count: number; size?: number }) {
-	return (
-		<span
-			style={{
-				display: "inline-flex",
-				flexWrap: "wrap",
-				gap: 1,
-				alignItems: "center",
-			}}
-		>
-			{Array.from({ length: count }, (_, i) => (
-				<img
-					key={i}
-					src={GOLD_BAR_SRC}
-					alt=""
-					style={{ width: size, height: size / 2 }}
-					aria-hidden="true"
-				/>
-			))}
-		</span>
-	);
 }
 
 function InventoryItem({
@@ -68,6 +47,8 @@ function InventoryItem({
 		.with({ type_: "road" }, (t) => `${t.road} icon`)
 		.with({ type_: "production" }, (t) => `${t.production} icon`)
 		.with({ type_: "canal" }, (t) => `canal ${t.canal} icon`)
+		.with({ type_: "bridge" }, () => "bridge icon")
+		.with({ type_: "bridge_only" }, () => "bridge add-on icon")
 		.exhaustive();
 
 	const isGoldProduction =
@@ -92,11 +73,7 @@ function InventoryItem({
 					display: "block",
 				}}
 			>
-				{isGoldProduction ? (
-					<span style={{ display: "inline-flex", padding: 4 }}>
-						<GoldBars count={tile.level} size={16} />
-					</span>
-				) : tile.type_ === "canal" && tile.canal === "straight" ? (
+				{tile.type_ === "canal" && tile.canal === "straight" ? (
 					<img
 						src={src}
 						alt={alt}

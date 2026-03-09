@@ -51,7 +51,20 @@ export function owned(x: number, y: number, owner: TileOwner, content: TileConte
 }
 
 
-export type TileContent = RoadTile | ProductionTile | EmptyTile | CityHallTile | WellTile | CanalTile
+export type BridgeTile = {
+    type_: "bridge"
+    rotation: RoadRotation
+}
+export function bridge(rotation: RoadRotation): BridgeTile {
+    return { type_: "bridge", rotation }
+}
+
+export type BridgeOnlyTile = { type_: "bridge_only" }
+export function bridgeOnly(): BridgeOnlyTile {
+    return { type_: "bridge_only" }
+}
+
+export type TileContent = RoadTile | ProductionTile | EmptyTile | CityHallTile | WellTile | CanalTile | BridgeTile
 
 export type EmptyTile = { type_: "empty" }
 export function empty(): EmptyTile { return { type_: "empty" } }
@@ -112,11 +125,24 @@ export function directions(up: boolean, right: boolean, bottom: boolean, left: b
     return { up, right, bottom, left }
 }
 
-export function accessibleDirections(tile: RoadTile | CityHallTile | CanalTile | WellTile): AccessibleDirections {
+/** Canal directions for bridge (water = blue horizontal). Logic rotated 90° vs visual. */
+export function bridgeCanalDirections(rotation: RoadRotation): AccessibleDirections {
+    if (rotation === 0 || rotation === 180) return directions(false, true, false, true);
+    return directions(true, false, true, false);
+}
+/** Road directions for bridge (road = black vertical). Logic rotated 90° vs visual. */
+export function bridgeRoadDirections(rotation: RoadRotation): AccessibleDirections {
+    if (rotation === 0 || rotation === 180) return directions(true, false, true, false);
+    return directions(false, true, false, true);
+}
+
+export function accessibleDirections(tile: RoadTile | CityHallTile | CanalTile | WellTile | BridgeTile): AccessibleDirections {
     switch (tile.type_) {
         case "hall":
         case "well":
             return directions(true, true, true, true);
+        case "bridge":
+            return bridgeCanalDirections((tile as BridgeTile).rotation);
         case "canal": {
             const c = tile as CanalTile;
             if (c.canal === "straight") {
@@ -219,12 +245,14 @@ export const actionPrices = {
     customs: 5
 };
 
-export type Tilable = RoadTile | ProductionTile | ActionTile | CanalTile
+export type Tilable = RoadTile | ProductionTile | ActionTile | CanalTile | BridgeTile | BridgeOnlyTile
 export type TileKey =
     | `action:${ActionType}`
     | `road:${RoadType}:${RoadRotation}`
     | `production:${ProductionType}:${ProductionLevel}`
     | `canal:${CanalType}`
+    | "bridge"
+    | "bridge_only"
 
 export function toTilable(key: TileKey): Tilable {
     const [type, ...rest] = key.split(":");
@@ -233,6 +261,8 @@ export function toTilable(key: TileKey): Tilable {
         case "road": return road(rest[0] as RoadType, Number.parseInt(rest[1]) as unknown as RoadRotation);
         case "production": return production(rest[0] as ProductionType, Number.parseInt(rest[1]) as unknown as ProductionLevel);
         case "canal": return canal(rest[0] as CanalType, 0);
+        case "bridge": return bridge(0);
+        case "bridge_only": return bridgeOnly();
         default: throw Error("unreachable")
     }
 }
@@ -242,6 +272,8 @@ export function toKey(tile: Tilable): TileKey {
         case "road": return `road:${tile.road}:${tile.rotation}` as const;
         case "production": return `production:${tile.production}:${tile.level}` as const;
         case "canal": return `canal:${tile.canal}` as const;
+        case "bridge": return "bridge" as const;
+        case "bridge_only": return "bridge_only" as const;
         default: throw Error("unreachable")
     }
 }
@@ -258,6 +290,8 @@ export const ALL_TILE_KEYS: TileKey[] = [
         ]
     }),
     ...CANAL_TYPES.map((c) => `canal:${c}` as const),
+    "bridge" as const,
+    "bridge_only" as const,
     ...RESOURCE_TYPES.flatMap((resource) => {
         return [
             ...PRODUCTION_LEVELS.map((level) => `production:${resource}:${level}` as const),
@@ -418,30 +452,36 @@ export function accessibleFreeTiles(game: Game, user: User): AccessibleTile[] {
         visited.push(p)
         const tile = game.tiles[`${p.y}-${p.x}`];
         if (tile.owned && tile.owner === user.color) {
+            const roadDirectionsFor = (content: TileContent): AccessibleDirections | null => {
+                if (content.type_ === "road" || content.type_ === "hall") return accessibleDirections(content);
+                if (content.type_ === "bridge") return bridgeRoadDirections(content.rotation);
+                return null;
+            };
             switch (tile.content.type_) {
                 case "road":
-                case "hall": {
-                    const directions = accessibleDirections(tile.content);
+                case "hall":
+                case "bridge": {
+                    const directions = roadDirectionsFor(tile.content)!;
                     if (directions.up) {
                         const up = point(tile.x, tile.y - 1);
 
                         if (!visited.some((p) => p.x === up.x && p.y === up.y)) {
                             match(game.tiles[`${up.y}-${up.x}`])
                                 .with(P.union({ owned: false }, { owned: true, owner: user.color, content: { type_: "empty" } }), (upTile) => {
-                                    // free tile or empty tile
                                     const accessibleTile = accessible.find((t) => t.x === up.x && t.y === up.y);
                                     if (accessibleTile) {
                                         accessibleTile.bottom = true;
                                     } else {
                                         accessible.push({ x: upTile.x, y: upTile.y, ...emptyDirections, bottom: true });
                                     }
-
                                 })
                                 .with({ owned: true, owner: user.color, content: { type_: "road" } }, (upTile) => {
                                     const upTileDirections = accessibleDirections(upTile.content);
-                                    if (upTileDirections.bottom) {
-                                        toVisit.push(up);
-                                    }
+                                    if (upTileDirections.bottom) toVisit.push(up);
+                                })
+                                .with({ owned: true, owner: user.color, content: { type_: "bridge" } }, (upTile) => {
+                                    const upTileDirections = bridgeRoadDirections(upTile.content.rotation);
+                                    if (upTileDirections.bottom) toVisit.push(up);
                                 })
                                 .otherwise(() => { });
                         }
@@ -451,7 +491,6 @@ export function accessibleFreeTiles(game: Game, user: User): AccessibleTile[] {
                         if (!visited.some((p) => p.x === right.x && p.y === right.y)) {
                             match(game.tiles[`${right.y}-${right.x}`])
                                 .with(P.union({ owned: false }, { owned: true, owner: user.color, content: { type_: "empty" } }), (rightTile) => {
-                                    // free tile or empty tile
                                     const accessibleTile = accessible.find((t) => t.x === right.x && t.y === right.y);
                                     if (accessibleTile) {
                                         accessibleTile.left = true;
@@ -461,9 +500,11 @@ export function accessibleFreeTiles(game: Game, user: User): AccessibleTile[] {
                                 })
                                 .with({ owned: true, owner: user.color, content: { type_: "road" } }, (rightTile) => {
                                     const rightTileDirections = accessibleDirections(rightTile.content);
-                                    if (rightTileDirections.left) {
-                                        toVisit.push(right);
-                                    }
+                                    if (rightTileDirections.left) toVisit.push(right);
+                                })
+                                .with({ owned: true, owner: user.color, content: { type_: "bridge" } }, (rightTile) => {
+                                    const rightTileDirections = bridgeRoadDirections(rightTile.content.rotation);
+                                    if (rightTileDirections.left) toVisit.push(right);
                                 })
                                 .otherwise(() => { });
                         }
@@ -473,7 +514,6 @@ export function accessibleFreeTiles(game: Game, user: User): AccessibleTile[] {
                         if (!visited.some((p) => p.x === bottom.x && p.y === bottom.y)) {
                             match(game.tiles[`${bottom.y}-${bottom.x}`])
                                 .with(P.union({ owned: false }, { owned: true, owner: user.color, content: { type_: "empty" } }), (bottomTile) => {
-                                    // free tile or empty tile
                                     const accessibleTile = accessible.find((t) => t.x === bottom.x && t.y === bottom.y);
                                     if (accessibleTile) {
                                         accessibleTile.up = true;
@@ -483,9 +523,11 @@ export function accessibleFreeTiles(game: Game, user: User): AccessibleTile[] {
                                 })
                                 .with({ owned: true, owner: user.color, content: { type_: "road" } }, (bottomTile) => {
                                     const bottomTileDirections = accessibleDirections(bottomTile.content);
-                                    if (bottomTileDirections.up) {
-                                        toVisit.push(bottom);
-                                    }
+                                    if (bottomTileDirections.up) toVisit.push(bottom);
+                                })
+                                .with({ owned: true, owner: user.color, content: { type_: "bridge" } }, (bottomTile) => {
+                                    const bottomTileDirections = bridgeRoadDirections(bottomTile.content.rotation);
+                                    if (bottomTileDirections.up) toVisit.push(bottom);
                                 })
                                 .otherwise(() => { });
                         }
@@ -495,7 +537,6 @@ export function accessibleFreeTiles(game: Game, user: User): AccessibleTile[] {
                         if (!visited.some((p) => p.x === left.x && p.y === left.y)) {
                             match(game.tiles[`${left.y}-${left.x}`])
                                 .with(P.union({ owned: false }, { owned: true, owner: user.color, content: { type_: "empty" } }), (leftTile) => {
-                                    // free tile or empty tile
                                     const accessibleTile = accessible.find((t) => t.x === left.x && t.y === left.y);
                                     if (accessibleTile) {
                                         accessibleTile.right = true;
@@ -505,9 +546,11 @@ export function accessibleFreeTiles(game: Game, user: User): AccessibleTile[] {
                                 })
                                 .with({ owned: true, owner: user.color, content: { type_: "road" } }, (leftTile) => {
                                     const leftTileDirections = accessibleDirections(leftTile.content);
-                                    if (leftTileDirections.right) {
-                                        toVisit.push(left);
-                                    }
+                                    if (leftTileDirections.right) toVisit.push(left);
+                                })
+                                .with({ owned: true, owner: user.color, content: { type_: "bridge" } }, (leftTile) => {
+                                    const leftTileDirections = bridgeRoadDirections(leftTile.content.rotation);
+                                    if (leftTileDirections.right) toVisit.push(left);
                                 })
                                 .otherwise(() => { });
                         }
@@ -581,9 +624,11 @@ export function accessibleCanalTiles(game: Game, user: User): AccessibleTile[] {
 
         const tile = game.tiles[key as `${number}-${number}`];
         if (!tile?.owned || tile.owner !== user.color) continue;
-        if (tile.content.type_ !== "well" && tile.content.type_ !== "canal") continue;
+        if (tile.content.type_ !== "well" && tile.content.type_ !== "canal" && tile.content.type_ !== "bridge") continue;
 
-        const dirs = accessibleDirections(tile.content);
+        const dirs = tile.content.type_ === "bridge"
+            ? bridgeCanalDirections(tile.content.rotation)
+            : accessibleDirections(tile.content);
         const neighbors: {
             allowed: boolean;
             point: Point;
@@ -606,8 +651,10 @@ export function accessibleCanalTiles(game: Game, user: User): AccessibleTile[] {
                 continue;
             }
 
-            if (next.content.type_ === "canal" || next.content.type_ === "well") {
-                const nextDirs = accessibleDirections(next.content);
+            if (next.content.type_ === "canal" || next.content.type_ === "well" || next.content.type_ === "bridge") {
+                const nextDirs = next.content.type_ === "bridge"
+                    ? bridgeCanalDirections(next.content.rotation)
+                    : accessibleDirections(next.content);
                 if (nextDirs[neighbor.back]) {
                     toVisit.push(neighbor.point);
                 }
@@ -647,11 +694,40 @@ export function getStraightCanalSecondCell(
     return null;
 }
 
+/** The other cell of a straight canal that occupies two cells. Returns null if not a straight canal or partner not found. */
+export function getStraightCanalPartnerCell(
+    game: Game,
+    x: number,
+    y: number,
+): Point | null {
+    const key = `${y}-${x}` as const;
+    const t = game.tiles[key];
+    if (!t?.owned || t.content.type_ !== "canal" || t.content.canal !== "straight") return null;
+    const rot = t.content.rotation;
+    const owner = t.owner;
+    const neighbors: Point[] =
+        rot === 0 || rot === 180 ? [point(x - 1, y), point(x + 1, y)] : [point(x, y - 1), point(x, y + 1)];
+    for (const p of neighbors) {
+        if (p.x < 0 || p.x >= BOARD_SIZE || p.y < 0 || p.y >= BOARD_SIZE) continue;
+        const u = game.tiles[`${p.y}-${p.x}` as const];
+        if (
+            u?.owned &&
+            u.owner === owner &&
+            u.content.type_ === "canal" &&
+            u.content.canal === "straight" &&
+            u.content.rotation === rot
+        ) {
+            return p;
+        }
+    }
+    return null;
+}
+
 function isInsideBoard(point: Point): boolean {
     return point.x >= 0 && point.x < BOARD_SIZE && point.y >= 0 && point.y < BOARD_SIZE;
 }
 
-type PassableRoadOrHall = OwnedTile & { content: RoadTile | CityHallTile };
+type PassableRoadOrHall = OwnedTile & { content: RoadTile | CityHallTile | BridgeTile };
 
 function isPassableRoadOrHall(tile: Tile): tile is PassableRoadOrHall {
     if (!tile.owned) {
@@ -663,7 +739,16 @@ function isPassableRoadOrHall(tile: Tile): tile is PassableRoadOrHall {
     if (tile.content.type_ === "road") {
         return !tile.content.blocked;
     }
+    if (tile.content.type_ === "bridge") {
+        return true;
+    }
     return false;
+}
+
+/** Road directions for traversal (road network): bridge uses bridgeRoadDirections. */
+function roadDirectionsFor(content: RoadTile | CityHallTile | BridgeTile): AccessibleDirections {
+    if (content.type_ === "bridge") return bridgeRoadDirections(content.rotation);
+    return accessibleDirections(content);
 }
 
 function tileKey(point: Point): `${number}-${number}` {
@@ -816,7 +901,7 @@ export function calculateUserProduction(game: Game, owner: TileOwner): ResourceC
         }
 
         addReachable(current);
-        const directions = accessibleDirections(tile.content);
+        const directions = roadDirectionsFor(tile.content);
 
         const neighbors: Array<{ point: Point; required: keyof AccessibleDirections }> = [];
         if (directions.up) {
@@ -847,7 +932,7 @@ export function calculateUserProduction(game: Game, owner: TileOwner): ResourceC
             if (!isPassableRoadOrHall(neighborTile)) {
                 continue;
             }
-            const neighborDirections = accessibleDirections(neighborTile.content);
+            const neighborDirections = roadDirectionsFor(neighborTile.content);
             if (neighborDirections[neighbor.required]) {
                 toVisit.push(neighbor.point);
             }
@@ -874,7 +959,7 @@ export function calculateUserProduction(game: Game, owner: TileOwner): ResourceC
             if (!neighborTile || !isPassableRoadOrHall(neighborTile)) {
                 continue;
             }
-            const neighborDirections = accessibleDirections(neighborTile.content);
+            const neighborDirections = roadDirectionsFor(neighborTile.content);
             if (neighborDirections[position.required]) {
                 return true;
             }

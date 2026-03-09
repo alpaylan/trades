@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 78.53 78.45" width="78.53" height="78.45">
+  <rect x="0" y="0" width="78.53" height="78.45" fill="#ffffff"/>
+  <rect x="2" y="2" width="74.53" height="74.45" rx="12" ry="12" fill="none" stroke="#1e1e1e" stroke-width="4"/>
+  <!-- I shape: single vertical line (flat bridge) - same viewBox as canal-corner; bar thickness as original -->
+  <rect x="32" y="5" width="15" height="68" fill="#1e1e1e" stroke="#37474f" stroke-width="1"/>
+</svg>

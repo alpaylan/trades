@@ -22,6 +22,7 @@ import {
 	type OwnedTile,
 	type ProductionTile,
 	type Tilable,
+	bridge,
 	toKey,
 	well,
 	zero,
@@ -382,6 +383,7 @@ export type Action =
 	| { type: "TOLL_TILE"; payload: { x: number; y: number } }
 	| { type: "CUSTOMS_TILE"; payload: { x: number; y: number } }
 	| { type: "PLACE_TILE"; payload: { x: number; y: number; tile: Tilable } }
+	| { type: "REPLACE_CANAL_WITH_BRIDGE"; payload: { x: number; y: number } }
 	| { type: "SELECT_WELL"; payload: { x: number; y: number } }
 	| { type: "DISMISS_EVENT_CARD" }
 	| { type: "DISMISS_BLACK_MARKET_POPUP" }
@@ -425,6 +427,7 @@ export const AUTHORITATIVE_ACTION_TYPES: Action["type"][] = [
 	"TOLL_TILE",
 	"CUSTOMS_TILE",
 	"PLACE_TILE",
+	"REPLACE_CANAL_WITH_BRIDGE",
 	"SELECT_WELL",
 	"DISMISS_EVENT_CARD",
 	"SPECULATIVE_ROLL",
@@ -456,9 +459,10 @@ export const reducer = (state: State, action: Action): State => {
 		].includes(innerAction.type);
 	};
 
+	const historyArray = Array.isArray(state.history) ? state.history : [];
 	const historyState = shouldSaveToHistory(action)
-		? [...state.history.slice(-19), { ...state, history: [] }]
-		: state.history;
+		? [...historyArray.slice(-19), { ...state, history: [] }]
+		: historyArray;
 
 	if (action.type === "UNDO") {
 		if (historyState.length === 0) {
@@ -523,7 +527,10 @@ export const reducer = (state: State, action: Action): State => {
 			};
 		})
 		.with({ type: "SET_ROTATION" }, (innerAction) => {
-			if (!state.selected || (state.selected.type_ !== "road" && state.selected.type_ !== "canal")) {
+			if (!state.selected || state.selected.type_ === "bridge_only") {
+				return { ...state, history: historyState };
+			}
+			if (state.selected.type_ !== "road" && state.selected.type_ !== "canal" && state.selected.type_ !== "bridge") {
 				return { ...state, history: historyState };
 			}
 			const rotatedTile: Tilable = {
@@ -1029,6 +1036,12 @@ export const reducer = (state: State, action: Action): State => {
 				if (!accessibleFromCanal || !directionMatch(accessibleDirections(tile), accessibleFromCanal)) {
 					return state;
 				}
+			} else if (tile.type_ === "bridge") {
+				if (!accessibleFromCanal || !directionMatch(accessibleDirections(tile), accessibleFromCanal)) {
+					return state;
+				}
+			} else if (tile.type_ === "bridge_only") {
+				return state;
 			} else {
 				return state;
 			}
@@ -1137,6 +1150,70 @@ export const reducer = (state: State, action: Action): State => {
 				...state,
 				game: updateUserProduction(updatedGame, user.color),
 				selected: hasMoreRoads ? tile : null,
+				pendingRotation: null,
+				actionsUsedThisTurn: fromPurchaseThisTurn ? state.actionsUsedThisTurn : actionsUsed + 1,
+				purchasedThisTurn,
+				history: historyState,
+			};
+		})
+		.with({ type: "REPLACE_CANAL_WITH_BRIDGE" }, (innerAction) => {
+			if (state.activeEventEffects?.speculativeInvestment && !state.speculativeInvestmentResolved[state.game.turn]) {
+				return state;
+			}
+			const { x, y } = innerAction.payload;
+			const user = state.game.users[state.game.turn];
+			const currentTile = state.game.tiles[`${y}-${x}`];
+			if (
+				!currentTile?.owned ||
+				currentTile.owner !== user.color ||
+				currentTile.content.type_ !== "canal" ||
+				currentTile.content.canal !== "straight"
+			) {
+				return state;
+			}
+			const inventoryKey = "bridge_only" as TileKey;
+			if (user.inventory[inventoryKey] <= 0) return state;
+			const actionsUsed = state.actionsUsedThisTurn ?? 0;
+			const userPurchased = state.purchasedThisTurn[user.color] ?? {};
+			const fromPurchaseThisTurn = (userPurchased[inventoryKey] ?? 0) > 0;
+			if (!fromPurchaseThisTurn && actionsUsed >= 2) return state;
+			const bridgeContent = bridge(currentTile.content.rotation);
+			const newTiles: typeof state.game.tiles = {
+				...state.game.tiles,
+				[`${y}-${x}`]: {
+					x,
+					y,
+					content: bridgeContent,
+					owned: true,
+					owner: user.color,
+				},
+			};
+			const updatedGame = {
+				...state.game,
+				users: {
+					...state.game.users,
+					[user.color]: {
+						...user,
+						inventory: {
+							...user.inventory,
+							[inventoryKey]: user.inventory[inventoryKey] - 1,
+						},
+					},
+				},
+				tiles: newTiles,
+			};
+			let purchasedThisTurn: PurchasedThisTurn = state.purchasedThisTurn;
+			if (fromPurchaseThisTurn) {
+				const remaining = (userPurchased[inventoryKey] ?? 0) - 1;
+				const updatedUserPurchased: Partial<Record<TileKey, number>> = { ...userPurchased };
+				if (remaining > 0) updatedUserPurchased[inventoryKey] = remaining;
+				else delete updatedUserPurchased[inventoryKey];
+				purchasedThisTurn = { ...state.purchasedThisTurn, [user.color]: updatedUserPurchased };
+			}
+			return {
+				...state,
+				game: updateUserProduction(updatedGame, user.color),
+				selected: null,
 				pendingRotation: null,
 				actionsUsedThisTurn: fromPurchaseThisTurn ? state.actionsUsedThisTurn : actionsUsed + 1,
 				purchasedThisTurn,
