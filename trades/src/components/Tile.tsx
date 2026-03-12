@@ -171,7 +171,19 @@ export default function Tile({
 				? "Replace with bridge"
 				: `Water canal (${content.canal})`,
 		)
-		.with({ type_: "bridge" }, () => "Bridge (road over canal)")
+		.with({ type_: "bridge" }, (content) =>
+			state.selected?.type_ === "action" &&
+			state.selected.action === "block" &&
+			!content.blocked &&
+			state.activeEventEffects?.safePassage
+				? "Block placement disabled (Safe Passage event)"
+				: state.selected?.type_ === "action" &&
+						state.selected.action === "unblock" &&
+						content.blocked &&
+						state.activeEventEffects?.brokenLogistics
+					? "Unblock disabled (Broken Logistics event)"
+					: `Bridge (road over canal)` + (content.blocked ? " - blocked" : ""),
+		)
 		.with({ type_: "hall" }, (content) => `City hall (level ${content.level})`)
 		.with(
 			{ type_: "production" },
@@ -243,6 +255,28 @@ export default function Tile({
 		) {
 			canClick = false;
 		}
+		// Block: any player's road or bridge that is not blocked
+		if (
+			state.selected.type_ === "action" &&
+			state.selected.action === "block"
+		) {
+			const blocked = tile.content.type_ === "road" || tile.content.type_ === "bridge" ? tile.content.blocked : false;
+			canClick =
+				canClick &&
+				(tile.content.type_ === "road" || tile.content.type_ === "bridge") &&
+				!blocked;
+		}
+		// Unblock: any player's road or bridge that is blocked
+		if (
+			state.selected.type_ === "action" &&
+			state.selected.action === "unblock"
+		) {
+			const blocked = tile.content.type_ === "road" || tile.content.type_ === "bridge" ? tile.content.blocked : false;
+			canClick =
+				canClick &&
+				(tile.content.type_ === "road" || tile.content.type_ === "bridge") &&
+				blocked;
+		}
 		// Customs gate: only border roads whose open side faces a neighbor (eligible for customs)
 		if (
 			state.selected.type_ === "action" &&
@@ -254,6 +288,15 @@ export default function Tile({
 				tile.owner === current &&
 				!tile.content.customs &&
 				isRoadEligibleForCustoms(state.game, tile);
+		}
+		// Turn/rotation: not allowed on roads with customs gate
+		if (
+			state.selected.type_ === "action" &&
+			state.selected.action === "turn" &&
+			tile.content.type_ === "road" &&
+			tile.content.customs
+		) {
+			canClick = false;
 		}
 		// Gift event: must take free action tile first; disable all board actions
 		if (
@@ -364,6 +407,7 @@ export default function Tile({
 										});
 									})
 									.with("turn", () => {
+										if (content.customs) return;
 										if (content.road === "plus") return;
 										if (content.road === "i") {
 											dispatch({
@@ -398,8 +442,11 @@ export default function Tile({
 										});
 									})
 									.exhaustive();
-							} else {
-								console.log("Tile is not a road, cannot apply action");
+							} else if ((content?.type_ === "road" || content?.type_ === "bridge") && (tile_.action === "block" || tile_.action === "unblock")) {
+								dispatch({
+									type: tile_.action === "block" ? "BLOCK_TILE" : "UNBLOCK_TILE",
+									payload: { x: tile.x, y: tile.y },
+								});
 							}
 						})
 						.with(
@@ -590,41 +637,77 @@ export default function Tile({
 					);
 				})
 				.with({ type_: "canal" }, (content) => {
+					const severeDrought = state.activeEventEffects?.severeDrought ?? false;
+					const droughtFilter = severeDrought
+						? "sepia(0.9) hue-rotate(-40deg) saturate(0.75) brightness(0.85)"
+						: undefined;
 					const inner =
 						content.canal === "straight" ? (
-							<img
-								src="/assets/canal-straight.svg"
-								alt="canal straight"
-								style={{
-									width: "32px",
-									height: "32px",
-									transform: content.rotation === 0 || content.rotation === 180 ? "none" : "rotate(90deg)",
-								}}
-							/>
+							<span style={{ position: "relative", display: "inline-block" }}>
+								<img
+									src="/assets/canal-straight.svg"
+									alt="canal straight"
+									style={{
+										width: "32px",
+										height: "32px",
+										transform: content.rotation === 0 || content.rotation === 180 ? "none" : "rotate(90deg)",
+										filter: droughtFilter,
+									}}
+								/>
+							</span>
 						) : (
-							<img
-								src={`/assets/canal-${content.canal}.svg`}
-								alt={`canal ${content.canal}`}
-								style={{
-									width: "32px",
-									height: "32px",
-									transform: `rotate(${content.rotation}deg)`,
-								}}
-							/>
+							<span style={{ position: "relative", display: "inline-block" }}>
+								<img
+									src={`/assets/canal-${content.canal}.svg`}
+									alt={`canal ${content.canal}`}
+									style={{
+										width: "32px",
+										height: "32px",
+										transform: `rotate(${content.rotation}deg)`,
+										filter: droughtFilter,
+									}}
+								/>
+							</span>
 						);
 					return <>{inner}</>;
 				})
-				.with({ type_: "bridge" }, (content) => (
-					<img
-						src="/assets/bridge.svg"
-						alt="bridge"
-						style={{
-							width: "32px",
-							height: "32px",
-							transform: `rotate(${content.rotation}deg)`,
-						}}
-					/>
-				))
+				.with({ type_: "bridge" }, (content) => {
+					const severeDrought = state.activeEventEffects?.severeDrought ?? false;
+					const droughtFilter = severeDrought
+						? "sepia(0.9) hue-rotate(-40deg) saturate(0.75) brightness(0.85)"
+						: undefined;
+					return (
+						<>
+							<span style={{ position: "relative", display: "inline-block" }}>
+								<img
+									src="/assets/bridge.svg"
+									alt="bridge"
+									style={{
+										width: "32px",
+										height: "32px",
+										transform: `rotate(${content.rotation}deg)`,
+										filter: droughtFilter,
+									}}
+								/>
+							</span>
+							{content.blocked ? (
+							<img
+								src="/assets/block.svg"
+								alt="blocked icon"
+								style={{
+									position: "absolute",
+									top: 0,
+									left: 0,
+									width: "32px",
+									height: "32px",
+									opacity: 0.85,
+									pointerEvents: "none",
+								}}
+							/>
+						) : null}
+						</>
+					);
+				})
 				.with({ type_: "production" }, (content) =>
 					<img
 							src={`/assets/${content.production}-${content.level}.svg`}

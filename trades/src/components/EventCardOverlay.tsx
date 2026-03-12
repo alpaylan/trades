@@ -45,6 +45,10 @@ const CARD_IMAGES: Record<string, { src: string; alt: string }> = {
 		src: "/assets/event-card-economic-isolation.png",
 		alt: "Economic Isolation",
 	},
+	severe_drought: {
+		src: "/assets/event-card-severe-drought.png",
+		alt: "Severe Drought",
+	},
 };
 
 const EVENT_CARD_FALLBACK: Record<string, { title: string; rule: string }> = {
@@ -55,6 +59,10 @@ const EVENT_CARD_FALLBACK: Record<string, { title: string; rule: string }> = {
 	economic_isolation: {
 		title: "Economic Isolation",
 		rule: "Connectivity is mandatory! Any player who has not established at least one completed trade route with a neighbor must pay 3 Gold. If a player cannot afford the gold, their Gold production is reduced by 1.",
+	},
+	severe_drought: {
+		title: "Severe Drought",
+		rule: "Water sources are depleted! Players cannot purchase or place Water Channel tiles this round. If you already have a channel, it provides no production bonuses this turn.",
 	},
 };
 
@@ -159,7 +167,9 @@ export default function EventCardOverlay() {
 																					? "International Trade Treaty event card"
 																					: state.eventCardContent === "economic_isolation"
 																						? "Economic Isolation event card"
-																						: "Event card"
+																						: state.eventCardContent === "severe_drought"
+																							? "Severe Drought event card"
+																							: "Event card"
 			}
 		>
 			<div

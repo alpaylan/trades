@@ -49,9 +49,15 @@ function StoreItem({
 		isFreeActionTile || isFreeRoadTile ? 0 : pricedWithDiscounts;
 	const priceTag = blackFriday ? " — Black Friday!" : rapidInflation ? " — Rapid Inflation!" : "";
 	const freeTag = isFreeActionTile ? " — Free gift!" : isFreeRoadTile ? " — Logistic Breakthrough!" : "";
-	const tooltip = `${text} (cost: ${displayPrice}${priceTag}${freeTag})`;
+	const severeDrought = state.activeEventEffects?.severeDrought ?? false;
+	const droughtBlocked = severeDrought && (item.type_ === "canal" || item.type_ === "bridge" || item.type_ === "bridge_only");
+	const tooltip =
+		droughtBlocked
+			? "Severe Drought: Water Channel and bridge tiles cannot be purchased or placed this round."
+			: `${text} (cost: ${displayPrice}${priceTag}${freeTag})`;
 
-	const disabled = resources.dollar < displayPrice || !canAct;
+	const disabled =
+		resources.dollar < displayPrice || !canAct || droughtBlocked;
 
 	return (
 		<button

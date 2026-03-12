@@ -211,11 +211,11 @@ export type State = {
 	eventCardTriggerPosition: number;
 	noRoadTestPosition: 1 | 2 | 3;
 	showEventCard: boolean;
-	eventCardContent: "blank" | "end_of_phase_1" | "no_road" | "black_friday" | "gift" | "lucky_streak" | "labor_revolt" | "rapid_inflation" | "structural_collapse" | "safe_passage" | "broken_logistics" | "business_as_usual" | "extended_timeline" | "bureaucratic_delay" | "logistic_breakthrough" | "market_holiday" | "supply_chain_shortage" | "material_surplus" | "speculative_investment" | "black_market_scams" | "merchants_lottery" | "robin_hoods_toll" | "reversed_currents" | "time_skip" | "international_trade_treaty" | "economic_isolation";
+	eventCardContent: "blank" | "end_of_phase_1" | "no_road" | "black_friday" | "gift" | "lucky_streak" | "labor_revolt" | "rapid_inflation" | "structural_collapse" | "safe_passage" | "broken_logistics" | "business_as_usual" | "extended_timeline" | "bureaucratic_delay" | "logistic_breakthrough" | "market_holiday" | "supply_chain_shortage" | "material_surplus" | "speculative_investment" | "black_market_scams" | "merchants_lottery" | "robin_hoods_toll" | "reversed_currents" | "time_skip" | "international_trade_treaty" | "economic_isolation" | "severe_drought";
 	pendingRoundEnd: boolean;
-	activeEventEffects: { noRoad: boolean; blackFriday: boolean; gift: boolean; luckyStreak: boolean; laborRevolt: boolean; rapidInflation: boolean; safePassage: boolean; brokenLogistics: boolean; bureaucraticDelay: boolean; logisticBreakthrough: boolean; marketHoliday: boolean; supplyChainShortage: boolean; materialSurplus: boolean; speculativeInvestment: boolean; blackMarketScams: boolean; merchantsLottery: boolean; robinHoodsToll: boolean; reversedCurrent: boolean; internationalTradeTreaty: boolean; economicIsolation: boolean };
+	activeEventEffects: { noRoad: boolean; blackFriday: boolean; gift: boolean; luckyStreak: boolean; laborRevolt: boolean; rapidInflation: boolean; safePassage: boolean; brokenLogistics: boolean; bureaucraticDelay: boolean; logisticBreakthrough: boolean; marketHoliday: boolean; supplyChainShortage: boolean; materialSurplus: boolean; speculativeInvestment: boolean; blackMarketScams: boolean; merchantsLottery: boolean; robinHoodsToll: boolean; reversedCurrent: boolean; internationalTradeTreaty: boolean; economicIsolation: boolean; severeDrought: boolean };
 	giftReceivedThisRound: Record<TileOwner, boolean>;
-	lastDrawnEventCard: "blank" | "end_of_phase_1" | "no_road" | "black_friday" | "gift" | "lucky_streak" | "labor_revolt" | "rapid_inflation" | "structural_collapse" | "safe_passage" | "broken_logistics" | "business_as_usual" | "extended_timeline" | "bureaucratic_delay" | "logistic_breakthrough" | "market_holiday" | "supply_chain_shortage" | "material_surplus" | "speculative_investment" | "black_market_scams" | "merchants_lottery" | "robin_hoods_toll" | "reversed_currents" | "time_skip" | "international_trade_treaty" | "economic_isolation" | null;
+	lastDrawnEventCard: "blank" | "end_of_phase_1" | "no_road" | "black_friday" | "gift" | "lucky_streak" | "labor_revolt" | "rapid_inflation" | "structural_collapse" | "safe_passage" | "broken_logistics" | "business_as_usual" | "extended_timeline" | "bureaucratic_delay" | "logistic_breakthrough" | "market_holiday" | "supply_chain_shortage" | "material_surplus" | "speculative_investment" | "black_market_scams" | "merchants_lottery" | "robin_hoods_toll" | "reversed_currents" | "time_skip" | "international_trade_treaty" | "economic_isolation" | "severe_drought" | null;
 	/** Per-player list of action tiles removed by Black Market Scams (for popup). */
 	blackMarketScamsRemoved: Record<TileOwner, { key: TileKey; count: number }[]>;
 	/** Per-player: has the Black Market Scams loss popup been shown this round? */
@@ -268,13 +268,13 @@ const ALL_EVENT_CARDS_EXCEPT_END_OF_PHASE: State["eventCardContent"][] = [
 	"lucky_streak",
 	"safe_passage",
 	"rapid_inflation",
-	"business_as_usual",
 	"broken_logistics",
 	"bureaucratic_delay",
 	"logistic_breakthrough",
 	"market_holiday",
 	"supply_chain_shortage",
 	"material_surplus",
+	"severe_drought",
 ];
 
 function shuffleArray<T>(arr: T[]): T[] {
@@ -299,17 +299,17 @@ function buildEventCardDeck(): readonly State["eventCardContent"][] {
 			deck.push(shuffled[j++]);
 		}
 	}
-	// Geçici: ilk 3 kartı sabit (test için): 1. black_friday, 2. extended_timeline, 3. speculative_investment
+	// Geçici: ilk kart Severe Drought (test için); 2. black_friday, 3. extended_timeline
 	const swap = (arr: State["eventCardContent"][], a: number, b: number) => {
 		const t = arr[a];
 		arr[a] = arr[b];
 		arr[b] = t;
 	};
-	let i = deck.indexOf("black_friday");
+	let i = deck.indexOf("severe_drought");
 	if (i >= 0 && i !== 0) swap(deck, 0, i);
-	i = deck.indexOf("extended_timeline");
+	i = deck.indexOf("black_friday");
 	if (i >= 0 && i !== 1) swap(deck, 1, i);
-	i = deck.indexOf("speculative_investment");
+	i = deck.indexOf("extended_timeline");
 	if (i >= 0 && i !== 2) swap(deck, 2, i);
 	return deck;
 }
@@ -345,7 +345,7 @@ export const initialState = (): State => ({
 	showEventCard: false,
 	eventCardContent: "blank",
 	pendingRoundEnd: false,
-	activeEventEffects: { noRoad: false, blackFriday: false, gift: false, luckyStreak: false, laborRevolt: false, rapidInflation: false, safePassage: false, brokenLogistics: false, bureaucraticDelay: false, logisticBreakthrough: false, marketHoliday: false, supplyChainShortage: false, materialSurplus: false, speculativeInvestment: false, blackMarketScams: false, merchantsLottery: false, robinHoodsToll: false, reversedCurrent: false, internationalTradeTreaty: false, economicIsolation: false },
+	activeEventEffects: { noRoad: false, blackFriday: false, gift: false, luckyStreak: false, laborRevolt: false, rapidInflation: false, safePassage: false, brokenLogistics: false, bureaucraticDelay: false, logisticBreakthrough: false, marketHoliday: false, supplyChainShortage: false, materialSurplus: false, speculativeInvestment: false, blackMarketScams: false, merchantsLottery: false, robinHoodsToll: false, reversedCurrent: false, internationalTradeTreaty: false, economicIsolation: false, severeDrought: false },
 	giftReceivedThisRound: initialGiftReceivedThisRound(),
 	lastDrawnEventCard: null,
 	blackMarketScamsRemoved: initialBlackMarketScamsRemoved(),
@@ -494,11 +494,18 @@ export const reducer = (state: State, action: Action): State => {
 			pendingTurn: null,
 			history: historyState,
 		}))
-		.with({ type: "SET_PENDING_TURN" }, (innerAction) => ({
-			...state,
-			pendingTurn: innerAction.payload,
-			history: historyState,
-		}))
+		.with({ type: "SET_PENDING_TURN" }, (innerAction) => {
+			const { x, y } = innerAction.payload;
+			const tile = state.game.tiles[`${y}-${x}`];
+			if (tile?.owned && tile.content.type_ === "road" && tile.content.customs) {
+				return state;
+			}
+			return {
+				...state,
+				pendingTurn: innerAction.payload,
+				history: historyState,
+			};
+		})
 		.with({ type: "CLEAR_PENDING_TURN" }, () => ({
 			...state,
 			pendingTurn: null,
@@ -628,7 +635,7 @@ export const reducer = (state: State, action: Action): State => {
 						purchasedThisTurn: initialPurchasedThisTurn(),
 						eventCardsRemaining: newEventCards,
 						cardShownByTimeSkip: false,
-						activeEventEffects: { noRoad: false, blackFriday: false, gift: false, luckyStreak: false, laborRevolt: false, rapidInflation: false, safePassage: false, brokenLogistics: false, bureaucraticDelay: false, logisticBreakthrough: false, marketHoliday: false, supplyChainShortage: false, materialSurplus: false, speculativeInvestment: false, blackMarketScams: false, merchantsLottery: false, robinHoodsToll: false, reversedCurrent: false, internationalTradeTreaty: false, economicIsolation: false },
+						activeEventEffects: { noRoad: false, blackFriday: false, gift: false, luckyStreak: false, laborRevolt: false, rapidInflation: false, safePassage: false, brokenLogistics: false, bureaucraticDelay: false, logisticBreakthrough: false, marketHoliday: false, supplyChainShortage: false, materialSurplus: false, speculativeInvestment: false, blackMarketScams: false, merchantsLottery: false, robinHoodsToll: false, reversedCurrent: false, internationalTradeTreaty: false, economicIsolation: false, severeDrought: false },
 						giftReceivedThisRound: initialGiftReceivedThisRound(),
 						speculativeInvestmentResolved: initialSpeculativeInvestmentResolved(),
 						speculativeInvestmentRoll: null,
@@ -678,6 +685,7 @@ export const reducer = (state: State, action: Action): State => {
 			if (state.activeEventEffects?.marketHoliday) return state;
 			const { item, price } = innerAction.payload;
 			if (state.activeEventEffects?.supplyChainShortage && item.type_ === "road") return state;
+			if (state.activeEventEffects?.severeDrought && (item.type_ === "canal" || item.type_ === "bridge" || item.type_ === "bridge_only")) return state;
 			const user = state.game.users[state.game.turn];
 			const giftPending = state.activeEventEffects?.gift && !state.giftReceivedThisRound?.[user.color];
 			const isFreeActionTile = item.type_ === "action" && giftPending;
@@ -758,6 +766,9 @@ export const reducer = (state: State, action: Action): State => {
 			if (!tile.owned || tile.content.type_ !== "road" || tile.content.road === "plus") {
 				return state;
 			}
+			if (tile.content.customs) {
+				return state;
+			}
 			if (user.inventory["action:turn"] <= 0) {
 				return state;
 			}
@@ -816,7 +827,7 @@ export const reducer = (state: State, action: Action): State => {
 			const user = state.game.users[state.game.turn];
 			const tile = state.game.tiles[`${y}-${x}`];
 			const actionsUsed = state.actionsUsedThisTurn;
-			if (!tile.owned || tile.content.type_ !== "road") {
+			if (!tile.owned || (tile.content.type_ !== "road" && tile.content.type_ !== "bridge")) {
 				return state;
 			}
 			if (innerAction.type === "BLOCK_TILE" && state.activeEventEffects?.safePassage) {
@@ -1048,6 +1059,9 @@ export const reducer = (state: State, action: Action): State => {
 			if (tile.type_ === "road" && state.activeEventEffects?.noRoad) {
 				return state;
 			}
+			if ((tile.type_ === "canal" || tile.type_ === "bridge") && state.activeEventEffects?.severeDrought) {
+				return state;
+			}
 
 			const straightCanalSecondCell =
 				tile.type_ === "canal" && tile.canal === "straight" && accessibleFromCanal
@@ -1160,6 +1174,7 @@ export const reducer = (state: State, action: Action): State => {
 			if (state.activeEventEffects?.speculativeInvestment && !state.speculativeInvestmentResolved[state.game.turn]) {
 				return state;
 			}
+			if (state.activeEventEffects?.severeDrought) return state;
 			const { x, y } = innerAction.payload;
 			const user = state.game.users[state.game.turn];
 			const currentTile = state.game.tiles[`${y}-${x}`];
@@ -1296,6 +1311,7 @@ export const reducer = (state: State, action: Action): State => {
 						reversedCurrent: false,
 						internationalTradeTreaty: false,
 						economicIsolation: false,
+						severeDrought: false,
 					},
 					giftReceivedThisRound: initialGiftReceivedThisRound(),
 					lastDrawnEventCard: eventCardContent,
@@ -1459,6 +1475,7 @@ export const reducer = (state: State, action: Action): State => {
 					reversedCurrent: state.eventCardContent === "reversed_currents",
 					internationalTradeTreaty: state.eventCardContent === "international_trade_treaty",
 					economicIsolation: state.eventCardContent === "economic_isolation",
+					severeDrought: state.eventCardContent === "severe_drought",
 				};
 
 			const newEventCardsAfterDismiss = state.cardShownByTimeSkip

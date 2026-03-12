@@ -106,6 +106,7 @@ function placeCandidates(state: State): Action[] {
 
 	for (const key of inventoryKeys) {
 		if (key === "canal:straight" || key === "canal:corner") {
+			if (state.activeEventEffects?.severeDrought) continue;
 			const canalType = key === "canal:straight" ? "straight" : "corner";
 			const rotations =
 				canalType === "straight" ? CANAL_STRAIGHT_ROTATIONS : CANAL_CORNER_ROTATIONS;
@@ -130,6 +131,7 @@ function placeCandidates(state: State): Action[] {
 			continue;
 		}
 		if (key === "bridge") {
+			if (state.activeEventEffects?.severeDrought) continue;
 			for (const acc of canalAccessibles) {
 				for (const rotation of CANAL_STRAIGHT_ROTATIONS) {
 					const tile = bridge(rotation);
@@ -143,6 +145,7 @@ function placeCandidates(state: State): Action[] {
 			continue;
 		}
 		if (key === "bridge_only") {
+			if (state.activeEventEffects?.severeDrought) continue;
 			for (const tile of Object.values(state.game.tiles)) {
 				if (
 					!tile.owned ||
@@ -174,29 +177,40 @@ function roadActionCandidates(state: State): Action[] {
 	const owner = state.game.turn;
 	const user = state.game.users[owner];
 	const ownRoadTiles = Object.values(state.game.tiles).filter(
-		(tile): tile is OwnedTile & { content: { type_: "road"; customs: boolean } } =>
-			tile.owned === true && tile.owner === owner && tile.content.type_ === "road",
+		(tile): tile is OwnedTile & { content: { type_: "road" | "bridge"; customs?: boolean; blocked?: boolean } } =>
+			tile.owned === true && tile.owner === owner && (tile.content.type_ === "road" || tile.content.type_ === "bridge"),
+	);
+	// Any player's road or bridge can be blocked/unblocked
+	const anyRoadOrBridgeTiles = Object.values(state.game.tiles).filter(
+		(tile): tile is OwnedTile & { content: { type_: "road" | "bridge"; blocked?: boolean } } =>
+			tile.owned === true && (tile.content.type_ === "road" || tile.content.type_ === "bridge"),
 	);
 	const moves: Action[] = [];
 
-	for (const tile of ownRoadTiles) {
-		moves.push({ type: "TOLL_TILE", payload: { x: tile.x, y: tile.y } });
+	for (const tile of anyRoadOrBridgeTiles) {
 		moves.push({ type: "BLOCK_TILE", payload: { x: tile.x, y: tile.y } });
 		moves.push({ type: "UNBLOCK_TILE", payload: { x: tile.x, y: tile.y } });
-		if (
-			!tile.content.customs &&
-			(user.inventory["action:customs"] ?? 0) > 0 &&
-			isRoadEligibleForCustoms(state.game, tile)
-		) {
-			moves.push({ type: "CUSTOMS_TILE", payload: { x: tile.x, y: tile.y } });
-		}
-		for (const rotation of ROAD_ROTATIONS.filter(
-			(value): value is 90 | 180 | 270 => value !== 0,
-		)) {
-			moves.push({
-				type: "TURN_TILE",
-				payload: { x: tile.x, y: tile.y, rotation },
-			});
+	}
+	for (const tile of ownRoadTiles) {
+		if (tile.content.type_ === "road") {
+			moves.push({ type: "TOLL_TILE", payload: { x: tile.x, y: tile.y } });
+			if (
+				!tile.content.customs &&
+				(user.inventory["action:customs"] ?? 0) > 0 &&
+				isRoadEligibleForCustoms(state.game, tile)
+			) {
+				moves.push({ type: "CUSTOMS_TILE", payload: { x: tile.x, y: tile.y } });
+			}
+			if (!tile.content.customs) {
+				for (const rotation of ROAD_ROTATIONS.filter(
+					(value): value is 90 | 180 | 270 => value !== 0,
+				)) {
+					moves.push({
+						type: "TURN_TILE",
+						payload: { x: tile.x, y: tile.y, rotation },
+					});
+				}
+			}
 		}
 	}
 

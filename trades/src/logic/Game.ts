@@ -54,9 +54,10 @@ export function owned(x: number, y: number, owner: TileOwner, content: TileConte
 export type BridgeTile = {
     type_: "bridge"
     rotation: RoadRotation
+    blocked: boolean
 }
 export function bridge(rotation: RoadRotation): BridgeTile {
-    return { type_: "bridge", rotation }
+    return { type_: "bridge", rotation, blocked: false }
 }
 
 export type BridgeOnlyTile = { type_: "bridge_only" }
@@ -452,6 +453,9 @@ export function accessibleFreeTiles(game: Game, user: User): AccessibleTile[] {
         visited.push(p)
         const tile = game.tiles[`${p.y}-${p.x}`];
         if (tile.owned && tile.owner === user.color) {
+            // Blocked road/bridge: do not traverse through it (no continuous flow from center)
+            if (tile.content.type_ === "road" && tile.content.blocked) continue;
+            if (tile.content.type_ === "bridge" && tile.content.blocked) continue;
             const roadDirectionsFor = (content: TileContent): AccessibleDirections | null => {
                 if (content.type_ === "road" || content.type_ === "hall") return accessibleDirections(content);
                 if (content.type_ === "bridge") return bridgeRoadDirections(content.rotation);
@@ -476,10 +480,12 @@ export function accessibleFreeTiles(game: Game, user: User): AccessibleTile[] {
                                     }
                                 })
                                 .with({ owned: true, owner: user.color, content: { type_: "road" } }, (upTile) => {
+                                    if (upTile.content.blocked) return;
                                     const upTileDirections = accessibleDirections(upTile.content);
                                     if (upTileDirections.bottom) toVisit.push(up);
                                 })
                                 .with({ owned: true, owner: user.color, content: { type_: "bridge" } }, (upTile) => {
+                                    if (upTile.content.blocked) return;
                                     const upTileDirections = bridgeRoadDirections(upTile.content.rotation);
                                     if (upTileDirections.bottom) toVisit.push(up);
                                 })
@@ -499,10 +505,12 @@ export function accessibleFreeTiles(game: Game, user: User): AccessibleTile[] {
                                     }
                                 })
                                 .with({ owned: true, owner: user.color, content: { type_: "road" } }, (rightTile) => {
+                                    if (rightTile.content.blocked) return;
                                     const rightTileDirections = accessibleDirections(rightTile.content);
                                     if (rightTileDirections.left) toVisit.push(right);
                                 })
                                 .with({ owned: true, owner: user.color, content: { type_: "bridge" } }, (rightTile) => {
+                                    if (rightTile.content.blocked) return;
                                     const rightTileDirections = bridgeRoadDirections(rightTile.content.rotation);
                                     if (rightTileDirections.left) toVisit.push(right);
                                 })
@@ -522,10 +530,12 @@ export function accessibleFreeTiles(game: Game, user: User): AccessibleTile[] {
                                     }
                                 })
                                 .with({ owned: true, owner: user.color, content: { type_: "road" } }, (bottomTile) => {
+                                    if (bottomTile.content.blocked) return;
                                     const bottomTileDirections = accessibleDirections(bottomTile.content);
                                     if (bottomTileDirections.up) toVisit.push(bottom);
                                 })
                                 .with({ owned: true, owner: user.color, content: { type_: "bridge" } }, (bottomTile) => {
+                                    if (bottomTile.content.blocked) return;
                                     const bottomTileDirections = bridgeRoadDirections(bottomTile.content.rotation);
                                     if (bottomTileDirections.up) toVisit.push(bottom);
                                 })
@@ -545,10 +555,12 @@ export function accessibleFreeTiles(game: Game, user: User): AccessibleTile[] {
                                     }
                                 })
                                 .with({ owned: true, owner: user.color, content: { type_: "road" } }, (leftTile) => {
+                                    if (leftTile.content.blocked) return;
                                     const leftTileDirections = accessibleDirections(leftTile.content);
                                     if (leftTileDirections.right) toVisit.push(left);
                                 })
                                 .with({ owned: true, owner: user.color, content: { type_: "bridge" } }, (leftTile) => {
+                                    if (leftTile.content.blocked) return;
                                     const leftTileDirections = bridgeRoadDirections(leftTile.content.rotation);
                                     if (leftTileDirections.right) toVisit.push(left);
                                 })
@@ -740,7 +752,7 @@ function isPassableRoadOrHall(tile: Tile): tile is PassableRoadOrHall {
         return !tile.content.blocked;
     }
     if (tile.content.type_ === "bridge") {
-        return true;
+        return !(tile.content.blocked ?? false);
     }
     return false;
 }
@@ -808,13 +820,68 @@ export type TradeRoute = {
 };
 
 /**
+ * True if there is an unbroken path (no blocked road/bridge) from the given tile
+ * to the owner's city hall. Used to validate trade routes.
+ */
+function hasUnbrokenPathToCenter(game: Game, start: Point, owner: TileOwner): boolean {
+    const center = userCapital[owner];
+    const visited = new Set<string>();
+    const toVisit: Point[] = [start];
+    while (toVisit.length > 0) {
+        const p = toVisit.pop()!;
+        const key = `${p.y}-${p.x}`;
+        if (visited.has(key)) continue;
+        visited.add(key);
+        if (p.x === center.x && p.y === center.y) return true;
+        const tile = game.tiles[key as keyof typeof game.tiles];
+        if (!tile?.owned || tile.owner !== owner) continue;
+        if (tile.content.type_ === "road" && tile.content.blocked) continue;
+        if (tile.content.type_ === "bridge" && tile.content.blocked) continue;
+        const dirs =
+            tile.content.type_ === "bridge"
+                ? bridgeRoadDirections(tile.content.rotation)
+                : tile.content.type_ === "road" || tile.content.type_ === "hall"
+                    ? accessibleDirections(tile.content)
+                    : null;
+        if (!dirs) continue;
+        const neighbors: { p: Point; back: keyof AccessibleDirections }[] = [
+            { p: point(p.x, p.y - 1), back: "bottom" },
+            { p: point(p.x + 1, p.y), back: "left" },
+            { p: point(p.x, p.y + 1), back: "up" },
+            { p: point(p.x - 1, p.y), back: "right" },
+        ];
+        const dirKeys: (keyof AccessibleDirections)[] = ["up", "right", "bottom", "left"];
+        for (let i = 0; i < 4; i++) {
+            if (!dirs[dirKeys[i]]) continue;
+            const next = neighbors[i].p;
+            if (next.x < 0 || next.x >= BOARD_SIZE || next.y < 0 || next.y >= BOARD_SIZE) continue;
+            const nextKey = `${next.y}-${next.x}`;
+            if (visited.has(nextKey)) continue;
+            const nextTile = game.tiles[nextKey as keyof typeof game.tiles];
+            if (!nextTile?.owned || nextTile.owner !== owner) continue;
+            if (nextTile.content.type_ === "road" && nextTile.content.blocked) continue;
+            if (nextTile.content.type_ === "bridge" && nextTile.content.blocked) continue;
+            const nextDirs =
+                nextTile.content.type_ === "bridge"
+                    ? bridgeRoadDirections(nextTile.content.rotation)
+                    : nextTile.content.type_ === "road" || nextTile.content.type_ === "hall"
+                        ? accessibleDirections(nextTile.content)
+                        : null;
+            if (nextDirs && nextDirs[neighbors[i].back]) toVisit.push(next);
+        }
+    }
+    return false;
+}
+
+/**
  * Compute all trade routes on the board.
  *
  * A trade route exists between two neighboring players if:
  * - There is a pair of adjacent tiles (sharing an edge),
  * - Each tile is owned by a different player,
  * - Both tiles are road tiles with customs gates,
- * - Each road's open side (accessibleDirections) faces the other tile.
+ * - Each road's open side (accessibleDirections) faces the other tile,
+ * - From each customs tile there is an unbroken path (no blocked road/bridge) to that player's city hall.
  */
 export function findTradeRoutes(game: Game): TradeRoute[] {
     const routes: TradeRoute[] = [];
@@ -861,6 +928,14 @@ export function findTradeRoutes(game: Game): TradeRoute[] {
         const pairKey = `${owners[0]}-${owners[1]}-${firstCoord}-${secondCoord}`;
         if (seenPairs.has(pairKey)) continue;
         seenPairs.add(pairKey);
+
+        // Only count as trade route if both sides have unbroken path from customs to center
+        if (
+            !hasUnbrokenPathToCenter(game, { x: tile.x, y: tile.y }, tile.owner) ||
+            !hasUnbrokenPathToCenter(game, { x: neighbor.x, y: neighbor.y }, neighbor.owner)
+        ) {
+            continue;
+        }
 
         routes.push({
             between: owners,
