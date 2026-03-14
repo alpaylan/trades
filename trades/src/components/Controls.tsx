@@ -263,6 +263,10 @@ export default function Controls() {
 	const economicIsolationResult = state.economicIsolationResult?.[turn] ?? "none";
 	const showEconomicIsolationPopup =
 		economicIsolationActive && !state.economicIsolationPopupShown?.[turn];
+	const crumblingCanalsActive = state.activeEventEffects?.crumblingCanals ?? false;
+	const crumblingCanalsResult = state.crumblingCanalsResult?.[turn];
+	const showCrumblingCanalsPopup =
+		crumblingCanalsActive && crumblingCanalsResult && !state.crumblingCanalsPopupShown?.[turn];
 	const actionsUsed = state.actionsUsedThisTurn ?? 0;
 	const actionsLeft = Math.max(0, 2 - actionsUsed);
 	const giftPending =
@@ -616,6 +620,61 @@ export default function Controls() {
 						<button
 							type="button"
 							onClick={() => dispatch({ type: "DISMISS_ECONOMIC_ISOLATION_POPUP" })}
+							style={{
+								padding: "8px 24px",
+								borderRadius: 8,
+								border: "none",
+								background: "#2e7d32",
+								color: "#fff",
+								cursor: "pointer",
+								fontWeight: 600,
+								fontSize: 14,
+							}}
+						>
+							OK
+						</button>
+					</div>
+				</div>
+			)}
+			{showCrumblingCanalsPopup && crumblingCanalsResult && (
+				<div
+					style={{
+						position: "fixed",
+						inset: 0,
+						zIndex: 10000,
+						display: "flex",
+						alignItems: "center",
+						justifyContent: "center",
+						backgroundColor: "rgba(0,0,0,0.55)",
+					}}
+					role="dialog"
+					aria-modal="true"
+					aria-label="Crumbling Canals result"
+				>
+					<div
+						style={{
+							background: "#fff",
+							borderRadius: 14,
+							padding: "24px 32px",
+							boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+							textAlign: "center",
+							minWidth: 280,
+							maxWidth: 380,
+						}}
+					>
+						<p style={{ margin: "0 0 8px", fontWeight: 700, fontSize: 18, color: "#1a1a1a" }}>
+							Crumbling Canals
+						</p>
+						<p style={{ margin: "0 0 16px", fontSize: 14, color: "#333" }}>
+							{crumblingCanalsResult.adjacentCount === 0
+								? "You had no road tiles adjacent to a water channel. No cost."
+								: crumblingCanalsResult.productionReduced
+									? `You had ${crumblingCanalsResult.adjacentCount} road tile(s) adjacent to a canal (${crumblingCanalsResult.adjacentCount} Gold due). You could not pay the full amount: you paid ${crumblingCanalsResult.goldPaid} Gold and your Gold production was permanently reduced by 1.`
+									: `You had ${crumblingCanalsResult.adjacentCount} road tile(s) adjacent to a canal. You paid ${crumblingCanalsResult.goldPaid} Gold.`}
+						</p>
+						<button
+							type="button"
+							onClick={() => dispatch({ type: "DISMISS_CRUMBLING_CANALS_POPUP" })}
 							style={{
 								padding: "8px 24px",
 								borderRadius: 8,

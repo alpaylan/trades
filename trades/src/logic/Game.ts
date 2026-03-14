@@ -368,10 +368,12 @@ export type User = {
     resources: ResourceCollection
     production: ResourceCollection
     inventory: Inventory,
+    /** Permanent modifier to gold production (e.g. Crumbling Canals penalty). Applied on top of calculated production. */
+    goldProductionModifier?: number,
 }
 
 function user(color: TileOwner, resources: ResourceCollection, production: ResourceCollection) {
-    return { color, resources, production, inventory: inventory() }
+    return { color, resources, production, inventory: inventory(), goldProductionModifier: 0 }
 }
 const userCapital = {
     "green": point(4, 4),
@@ -1057,6 +1059,59 @@ export function calculateUserProduction(game: Game, owner: TileOwner): ResourceC
     }
 
     return productionTotals;
+}
+
+/** True if this tile cell contains canal (canal tile or bridge). */
+function isCanalOrBridge(tile: Tile): boolean {
+    if (!tile.owned) return false;
+    if (tile.content.type_ === "canal") return true;
+    if (tile.content.type_ === "bridge") return true;
+    return false;
+}
+
+/** True if this tile is a road tile (road or bridge). */
+function isRoadOrBridge(tile: Tile): boolean {
+    if (!tile.owned) return false;
+    if (tile.content.type_ === "road") return true;
+    if (tile.content.type_ === "bridge") return true;
+    return false;
+}
+
+/**
+ * For Crumbling Canals: count per owner how many road tiles are adjacent to a water channel.
+ * - Bridge tiles: always count 1 each (road is adjacent to water on the same tile).
+ * - Road tiles (not bridge): count 1 if they have at least one neighboring cell that is canal or bridge.
+ */
+export function countRoadTilesAdjacentToCanal(game: Game): Record<TileOwner, number> {
+    const count: Record<TileOwner, number> = { green: 0, orange: 0, blue: 0, red: 0 };
+    const dirs: Point[] = [
+        point(0, -1),
+        point(1, 0),
+        point(0, 1),
+        point(-1, 0),
+    ];
+    for (const p of ALL_TILES_POINTS) {
+        const key = tileKey(p);
+        const t = game.tiles[key];
+        if (!t || !t.owned) continue;
+        if (t.content.type_ === "bridge") {
+            count[t.owner]++;
+            continue;
+        }
+        if (t.content.type_ !== "road") continue;
+        let hasCanalNeighbor = false;
+        for (const d of dirs) {
+            const np = point(p.x + d.x, p.y + d.y);
+            if (!isInsideBoard(np)) continue;
+            const n = game.tiles[tileKey(np)];
+            if (n && isCanalOrBridge(n)) {
+                hasCanalNeighbor = true;
+                break;
+            }
+        }
+        if (hasCanalNeighbor) count[t.owner]++;
+    }
+    return count;
 }
 
 /**

@@ -88,7 +88,7 @@ describe("gameplay turn progression", () => {
 
 		expect(stateAfterRoundEnd.showEventCard).toBe(true);
 		expect(stateAfterRoundEnd.pendingRoundEnd).toBe(true);
-		expect(stateAfterRoundEnd.eventCardsRemaining).toBe(24);
+		expect(stateAfterRoundEnd.eventCardsRemaining).toBe(25);
 		expect(stateAfterRoundEnd.game.turn).toBe("red");
 		expect(stateAfterRoundEnd.game.round).toBe(1);
 
@@ -195,7 +195,7 @@ describe("gameplay turn progression", () => {
 		expect(state.showEventCard).toBe(true);
 		expect(state.pendingRoundEnd).toBe(true);
 		expect(state.game.turn).toBe("orange");
-		expect(state.eventCardsRemaining).toBe(24);
+		expect(state.eventCardsRemaining).toBe(25);
 
 		const afterDismiss = reducer(state, { type: "DISMISS_EVENT_CARD" });
 		expect(afterDismiss.game.round).toBe(2);

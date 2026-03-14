@@ -30,7 +30,9 @@ const EVENT_CARD_IMAGES: Record<
 	| "merchants_lottery"
 	| "international_trade_treaty"
 	| "economic_isolation"
-	| "severe_drought",
+	| "severe_drought"
+	| "flash_flood"
+	| "crumbling_canals",
 	string
 > = {
 	end_of_phase_1: "/assets/event-card-end-of-phase-1.png",
@@ -56,12 +58,16 @@ const EVENT_CARD_IMAGES: Record<
 	international_trade_treaty: "/assets/event-card-international-trade-treaty.png",
 	economic_isolation: "/assets/event-card-economic-isolation.png",
 	severe_drought: "/assets/event-card-severe-drought.png",
+	flash_flood: "/assets/event-card-flash-flood.png",
+	crumbling_canals: "/assets/event-card-crumbling-canals.png",
 };
 
 const CARD_TITLES: Record<string, string> = {
 	international_trade_treaty: "International Trade Treaty",
 	economic_isolation: "Economic Isolation",
 	severe_drought: "Severe Drought",
+	flash_flood: "Flash Flood",
+	crumbling_canals: "Crumbling Canals",
 };
 
 export default function EventDeck() {

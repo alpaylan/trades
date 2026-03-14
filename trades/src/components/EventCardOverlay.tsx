@@ -49,6 +49,14 @@ const CARD_IMAGES: Record<string, { src: string; alt: string }> = {
 		src: "/assets/event-card-severe-drought.png",
 		alt: "Severe Drought",
 	},
+	flash_flood: {
+		src: "/assets/event-card-flash-flood.png",
+		alt: "Flash Flood",
+	},
+	crumbling_canals: {
+		src: "/assets/event-card-crumbling-canals.png",
+		alt: "Crumbling Canals",
+	},
 };
 
 const EVENT_CARD_FALLBACK: Record<string, { title: string; rule: string }> = {
@@ -63,6 +71,14 @@ const EVENT_CARD_FALLBACK: Record<string, { title: string; rule: string }> = {
 	severe_drought: {
 		title: "Severe Drought",
 		rule: "Water sources are depleted! Players cannot purchase or place Water Channel tiles this round. If you already have a channel, it provides no production bonuses this turn.",
+	},
+	flash_flood: {
+		title: "Flash Flood",
+		rule: "The water has risen! Any Bridge (a tile where a Road and Channel cross) that has a Block-tile on it is completely impassable. You must remove the Block-tile first before any player can use that road. When this card is drawn, a block is placed on every bridge on the board.",
+	},
+	crumbling_canals: {
+		title: "Crumbling Canals",
+		rule: "The canal walls are crumbling! At the start of this round, each player pays 1 Gold per road tile they have that is adjacent to a water channel (canal or bridge). If a player cannot pay the full amount, their Gold production is reduced by 1 for this round (from the base 6) instead; nothing is removed from the board.",
 	},
 };
 
@@ -169,7 +185,11 @@ export default function EventCardOverlay() {
 																						? "Economic Isolation event card"
 																						: state.eventCardContent === "severe_drought"
 																							? "Severe Drought event card"
-																							: "Event card"
+																							: state.eventCardContent === "flash_flood"
+																								? "Flash Flood event card"
+																								: state.eventCardContent === "crumbling_canals"
+																									? "Crumbling Canals event card"
+																									: "Event card"
 			}
 		>
 			<div
