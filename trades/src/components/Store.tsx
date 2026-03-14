@@ -359,7 +359,18 @@ export default function Store({
 					<span>{randomDisplayPrice}</span>
 				</button>
 			</div>
-			<div id="canal-tiles" className="substore">
+			<div
+				id="canal-tiles"
+				className="substore"
+				style={
+					giftPending || lbPending
+						? {
+								opacity: 0.4,
+								pointerEvents: "none" as const,
+							}
+						: undefined
+				}
+			>
 				<StoreItem
 					resources={resources}
 					price={3}

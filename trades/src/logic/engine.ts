@@ -231,7 +231,7 @@ export type State = {
 	endedThisRound: Record<TileOwner, boolean>;
 	purchasedThisTurn: PurchasedThisTurn;
 	eventCardsRemaining: number;
-	/** Shuffled deck of 26 event cards; end_of_phase_1 is in a random position among the last 5. */
+	/** Shuffled deck of 25 event cards; end_of_phase_1 is in a random position among the last 5. */
 	eventCardDeck: readonly State["eventCardContent"][];
 	eventCardTriggerPosition: number;
 	noRoadTestPosition: 1 | 2 | 3;
@@ -279,6 +279,10 @@ export type State = {
 
 const randomTriggerPosition = () => Math.floor(Math.random() * 5) + 1;
 
+const EVENT_DECK_SIZE = 25;
+const CARDS_DISCARDED_AT_START = 3;
+const END_OF_PHASE_WINDOW = 5; // end_of_phase_1 must be in the last 5 cards
+
 const ALL_EVENT_CARDS_EXCEPT_END_OF_PHASE: State["eventCardContent"][] = [
 	"black_friday",
 	"extended_timeline",
@@ -299,6 +303,7 @@ const ALL_EVENT_CARDS_EXCEPT_END_OF_PHASE: State["eventCardContent"][] = [
 	"rapid_inflation",
 	"broken_logistics",
 	"bureaucratic_delay",
+	"business_as_usual",
 	"logistic_breakthrough",
 	"market_holiday",
 	"supply_chain_shortage",
@@ -317,17 +322,27 @@ function shuffleArray<T>(arr: T[]): T[] {
 	return out;
 }
 
-/** Build a deck of 26 event cards: 25 shuffled, end_of_phase_1 in a random position among the last 5. */
+/** Build a deck of 25 event cards:
+ * - Shuffle all non-end-of-phase event cards.
+ * - Discard the first 3 (they will not appear this game).
+ * - Take the next 24 as the playable event cards.
+ * - Insert end_of_phase_1 into a random position among the last 5 cards.
+ */
 function buildEventCardDeck(): readonly State["eventCardContent"][] {
 	const shuffled = shuffleArray(ALL_EVENT_CARDS_EXCEPT_END_OF_PHASE);
-	const endOfPhaseSlot = 21 + Math.floor(Math.random() * 5);
+	const usableEvents = shuffled.slice(
+		CARDS_DISCARDED_AT_START,
+		CARDS_DISCARDED_AT_START + (EVENT_DECK_SIZE - 1),
+	);
+	const endOfPhaseSlot =
+		EVENT_DECK_SIZE - END_OF_PHASE_WINDOW + Math.floor(Math.random() * END_OF_PHASE_WINDOW);
 	const deck: State["eventCardContent"][] = [];
 	let j = 0;
-	for (let i = 0; i < 26; i++) {
+	for (let i = 0; i < EVENT_DECK_SIZE; i++) {
 		if (i === endOfPhaseSlot) {
 			deck.push("end_of_phase_1");
 		} else {
-			deck.push(shuffled[j++]);
+			deck.push(usableEvents[j++]);
 		}
 	}
 	// Geçici: ilk kart Severe Drought (test için); 2. black_friday, 3. extended_timeline; 4. crumbling_canals
@@ -336,7 +351,7 @@ function buildEventCardDeck(): readonly State["eventCardContent"][] {
 		arr[a] = arr[b];
 		arr[b] = t;
 	};
-	let i = deck.indexOf("severe_drought");
+	let i = deck.indexOf("gift");
 	if (i >= 0 && i !== 0) swap(deck, 0, i);
 	i = deck.indexOf("black_friday");
 	if (i >= 0 && i !== 1) swap(deck, 1, i);
@@ -371,7 +386,7 @@ export const initialState = (): State => ({
 	actionsUsedThisTurn: 0,
 	endedThisRound: initialEndedThisRound(),
 	purchasedThisTurn: initialPurchasedThisTurn(),
-	eventCardsRemaining: 26,
+	eventCardsRemaining: EVENT_DECK_SIZE,
 	eventCardDeck: buildEventCardDeck(),
 	eventCardTriggerPosition: randomTriggerPosition(),
 	noRoadTestPosition: (Math.floor(Math.random() * 3) + 1) as 1 | 2 | 3,
@@ -629,11 +644,11 @@ export const reducer = (state: State, action: Action): State => {
 				const baseGame = state.game;
 				const newEventCards = Math.max(0, state.eventCardsRemaining - 1);
 				const drawCard = state.eventCardsRemaining > 0;
-				const deckIndex = 26 - state.eventCardsRemaining;
+				const deckIndex = EVENT_DECK_SIZE - state.eventCardsRemaining;
 				const eventCardContent: State["eventCardContent"] =
 					!drawCard ? "blank" : state.eventCardDeck[deckIndex] ?? "blank";
 				// Geçici sabit liste (inactive – artık eventCardDeck kullanılıyor):
-				// const cardIndex = 26 - state.eventCardsRemaining;
+				// const cardIndex = EVENT_DECK_SIZE - state.eventCardsRemaining;
 				// eventCardContent = cardIndex===1?"black_friday": cardIndex===2?"extended_timeline": ... : newEventCards===state.eventCardTriggerPosition?"end_of_phase_1":"blank";
 
 				if (!drawCard) {
@@ -1301,9 +1316,13 @@ export const reducer = (state: State, action: Action): State => {
 
 				// Time Skip kartı END_TURN'da zaten tüketildi; bir sonraki kartı gösteriyoruz, henüz tüketmiyoruz.
 				const drawCard = state.eventCardsRemaining > 0;
-				const nextDeckIndex = 26 - state.eventCardsRemaining;
+				const nextDeckIndex = EVENT_DECK_SIZE - state.eventCardsRemaining;
 				const eventCardContent: State["eventCardContent"] =
-					!drawCard ? "blank" : nextDeckIndex < 26 ? state.eventCardDeck[nextDeckIndex] : "blank";
+					!drawCard
+						? "blank"
+						: nextDeckIndex < EVENT_DECK_SIZE
+							? state.eventCardDeck[nextDeckIndex]
+							: "blank";
 
 				return {
 					...state,
