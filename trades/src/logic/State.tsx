@@ -9,6 +9,7 @@ import {
 	useMemo,
 	useState,
 } from "react";
+import type { TileOwner } from "./Game";
 import {
 	AUTHORITATIVE_ACTION_TYPES,
 	type Action,
@@ -19,14 +20,17 @@ import {
 } from "./engine";
 import { listViableMoves } from "./viableMoves";
 
-type MultiplayerBridge = {
+export type MultiplayerBridge = {
 	sendAuthoritativeAction: (action: Action) => void;
 	authoritativeState: State | null;
+	myColor: TileOwner;
 };
 
 type GlobalContextType = {
 	state: State;
 	dispatch: Dispatch<Action>;
+	myColor: TileOwner | null;
+	isMyTurn: boolean;
 };
 
 const GlobalContext = createContext<GlobalContextType | undefined>(undefined);
@@ -47,6 +51,9 @@ export const GlobalProvider = ({
 		setState(multiplayer.authoritativeState);
 	}, [multiplayer?.authoritativeState]);
 
+	const myColor = multiplayer?.myColor ?? null;
+	const isMyTurn = myColor === null || state.game.turn === myColor;
+
 	const dispatch = useCallback<Dispatch<Action>>(
 		(action) => {
 			if (!multiplayer) {
@@ -58,20 +65,25 @@ export const GlobalProvider = ({
 				return;
 			}
 			if (AUTHORITATIVE_ACTION_TYPES.includes(action.type)) {
+				if (state.game.turn !== multiplayer.myColor) {
+					return;
+				}
 				multiplayer.sendAuthoritativeAction(action);
 				return;
 			}
 			setState((previous) => reducer(previous, action));
 		},
-		[multiplayer],
+		[multiplayer, state.game.turn],
 	);
 
 	const value = useMemo(
 		() => ({
 			state,
 			dispatch,
+			myColor,
+			isMyTurn,
 		}),
-		[state, dispatch],
+		[state, dispatch, myColor, isMyTurn],
 	);
 
 	useEffect(() => {

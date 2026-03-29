@@ -235,7 +235,7 @@ function actionTileLabel(key: TileKey): string {
 }
 
 export default function Controls() {
-	const { state, dispatch } = useGlobalContext();
+	const { state, dispatch, myColor, isMyTurn } = useGlobalContext();
 	const [hoveredRotation, setHoveredRotation] = useState<90 | 180 | 270 | null>(null);
 	const [showSpeculativeDice, setShowSpeculativeDice] = useState(false);
 
@@ -295,7 +295,10 @@ export default function Controls() {
 				turn={state.game.turn}
 				round={state.game.round ?? 1}
 				actionsLeft={actionsLeft}
+				myColor={myColor}
+				isMyTurn={isMyTurn}
 			/>
+			<div style={!isMyTurn ? { opacity: 0.45, pointerEvents: "none" } : undefined}>
 			<div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
 				{speculativePending && (
 					<button
@@ -786,6 +789,7 @@ export default function Controls() {
 				</div>
 			)}
 			<Store resources={user.resources} />
+			</div>
 		</div>
 	);
 }

@@ -19,9 +19,6 @@ const toWsUrl = (): string => {
 	if (!/^wss?:\/\//.test(url)) {
 		throw new Error("VITE_MULTIPLAYER_WS_URL must start with ws:// or wss://");
 	}
-	if (/ws:\/\/(localhost|127\.0\.0\.1)/.test(url)) {
-		throw new Error("Localhost websocket URLs are disabled. Use a remote wss:// endpoint.");
-	}
 	if (window.location.protocol === "https:" && url.startsWith("ws://")) {
 		throw new Error("Insecure ws:// is blocked on HTTPS pages. Use wss://.");
 	}
@@ -55,9 +52,11 @@ export function useMultiplayerClient() {
 	const sendRaw = useCallback((serialized: string) => {
 		const socket = socketRef.current;
 		if (!socket || socket.readyState !== WebSocket.OPEN) {
+			console.warn("[MP] queuing (socket state:", socket?.readyState, "):", serialized);
 			queueRef.current.push(serialized);
 			return;
 		}
+		console.log("[MP] sending:", serialized);
 		socket.send(serialized);
 	}, []);
 
@@ -100,6 +99,7 @@ export function useMultiplayerClient() {
 
 	const handleServerMessage = useCallback(
 		(message: ServerMessage) => {
+			console.log("handleServerMessage", message);
 			switch (message.type) {
 				case "room_created":
 				case "room_joined":
@@ -168,6 +168,7 @@ export function useMultiplayerClient() {
 		socket.addEventListener("message", (event) => {
 			try {
 				const parsed: unknown = JSON.parse(event.data);
+				console.log("[MP] received:", parsed);
 				if (isServerMessage(parsed)) {
 					handleServerMessage(parsed);
 				}
@@ -201,7 +202,9 @@ export function useMultiplayerClient() {
 
 	const startGame = useCallback(() => {
 		const id = actorIdRef.current;
+		console.log("[MP] startGame called, actorId:", id);
 		if (!id) {
+			console.warn("[MP] startGame aborted: no actorId");
 			return;
 		}
 		send({ type: "start_game", actorId: id });
@@ -226,7 +229,10 @@ export function useMultiplayerClient() {
 	const sendAuthoritativeAction = useCallback(
 		(action: Action) => {
 			const id = actorIdRef.current;
+			const ver = versionRef.current;
+			console.log("[MP] sendAuthoritativeAction called, actorId:", id, "version:", ver, "action:", action.type);
 			if (!id) {
+				console.warn("[MP] sendAuthoritativeAction aborted: no actorId");
 				return;
 			}
 			send({
@@ -234,7 +240,7 @@ export function useMultiplayerClient() {
 				payload: {
 					action,
 					actorId: id,
-					expectedVersion: versionRef.current,
+					expectedVersion: ver,
 				},
 			});
 		},

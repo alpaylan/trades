@@ -45,6 +45,7 @@ server.on("connection", (socket) => {
 			return;
 		}
 
+		console.log("message", message);
 		switch (message.type) {
 			case "ping":
 				send(socket, { type: "pong" });

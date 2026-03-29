@@ -487,6 +487,9 @@ export const AUTHORITATIVE_ACTION_TYPES: Action["type"][] = [
 ];
 
 export const reducer = (state: State, action: Action): State => {
+
+
+
 	const updateUserProduction = (gameState: Game, owner: Game["turn"]) => ({
 		...gameState,
 		users: {
