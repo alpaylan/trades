@@ -442,7 +442,7 @@ export default function Tile({
 										});
 									})
 									.exhaustive();
-							} else if ((content?.type_ === "road" || content?.type_ === "bridge") && (tile_.action === "block" || tile_.action === "unblock")) {
+							} else if (content?.type_ === "bridge" && (tile_.action === "block" || tile_.action === "unblock")) {
 								dispatch({
 									type: tile_.action === "block" ? "BLOCK_TILE" : "UNBLOCK_TILE",
 									payload: { x: tile.x, y: tile.y },

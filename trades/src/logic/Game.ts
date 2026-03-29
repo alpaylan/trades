@@ -1069,13 +1069,6 @@ function isCanalOrBridge(tile: Tile): boolean {
     return false;
 }
 
-/** True if this tile is a road tile (road or bridge). */
-function isRoadOrBridge(tile: Tile): boolean {
-    if (!tile.owned) return false;
-    if (tile.content.type_ === "road") return true;
-    if (tile.content.type_ === "bridge") return true;
-    return false;
-}
 
 /**
  * For Crumbling Canals: count per owner how many road tiles are adjacent to a water channel.

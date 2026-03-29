@@ -17,7 +17,7 @@ export default function Board() {
 	if (roll === 1 || roll === 2 || roll === 5 || roll === 6) {
 		const current = game.turn;
 		for (const key of Object.keys(game.tiles)) {
-			const t = game.tiles[key];
+			const t = game.tiles[key as `${number}-${number}`];
 			if (
 				!t.owned ||
 				t.owner !== current ||

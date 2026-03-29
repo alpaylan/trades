@@ -1827,7 +1827,7 @@ export const reducer = (state: State, action: Action): State => {
 			}
 
 			if (payload.action === "downgrade" && (roll === 1 || roll === 2)) {
-				const key = `${payload.y}-${payload.x}`;
+				const key = `${payload.y}-${payload.x}` as const;
 				const tile = tiles[key];
 				if (
 					!tile?.owned ||
@@ -1878,7 +1878,7 @@ export const reducer = (state: State, action: Action): State => {
 			}
 
 			if (payload.action === "upgrade" && (roll === 5 || roll === 6)) {
-				const key = `${payload.y}-${payload.x}`;
+				const key = `${payload.y}-${payload.x}` as const;
 				const tile = tiles[key];
 				if (
 					!tile?.owned ||
