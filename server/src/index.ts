@@ -87,7 +87,13 @@ server.on("connection", (socket) => {
 					send(socket, { type: "error", message: result.reason });
 					return;
 				}
-				broadcastRoom(message.actorId, { type: "room_state", room: result.value });
+				broadcastRoom(message.actorId, { type: "room_state", room: result.value.room });
+				broadcastRoom(message.actorId, {
+					type: "game_started",
+					room: result.value.room,
+					version: result.value.version,
+					state: result.value.state,
+				});
 				return;
 			}
 			case "submit_action": {

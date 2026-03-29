@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Action, State } from "../logic/engine";
+import { initialState, type Action, type State } from "../logic/engine";
 import {
 	type ActorId,
 	type ClientMessage,
@@ -23,6 +23,65 @@ const toWsUrl = (): string => {
 		throw new Error("Insecure ws:// is blocked on HTTPS pages. Use wss://.");
 	}
 	return url;
+};
+
+const normalizeAuthoritativeState = (incoming: State): State => {
+	// Defensive normalization for multiplayer: server and client may briefly be on different versions.
+	// Ensure critical fields exist so round-1 "select well" flow cannot be blocked by stale speculative state.
+	const base = initialState();
+
+	const merged: State = {
+		...base,
+		...incoming,
+		game: {
+			...base.game,
+			...incoming.game,
+			users: { ...base.game.users, ...(incoming.game?.users ?? {}) },
+			tiles: (incoming.game?.tiles as State["game"]["tiles"]) ?? base.game.tiles,
+		},
+		activeEventEffects: { ...base.activeEventEffects, ...(incoming.activeEventEffects ?? {}) },
+		endedThisRound: { ...base.endedThisRound, ...(incoming.endedThisRound ?? {}) },
+		purchasedThisTurn: { ...base.purchasedThisTurn, ...(incoming.purchasedThisTurn ?? {}) },
+		giftReceivedThisRound: { ...base.giftReceivedThisRound, ...(incoming.giftReceivedThisRound ?? {}) },
+		speculativeInvestmentResolved: {
+			...base.speculativeInvestmentResolved,
+			...(incoming.speculativeInvestmentResolved ?? {}),
+		},
+		blackMarketScamsPopupShown: {
+			...base.blackMarketScamsPopupShown,
+			...(incoming.blackMarketScamsPopupShown ?? {}),
+		},
+		merchantsLotteryPopupShown: {
+			...base.merchantsLotteryPopupShown,
+			...(incoming.merchantsLotteryPopupShown ?? {}),
+		},
+		robinHoodTollPopupShown: {
+			...base.robinHoodTollPopupShown,
+			...(incoming.robinHoodTollPopupShown ?? {}),
+		},
+		internationalTradeTreatyPopupShown: {
+			...base.internationalTradeTreatyPopupShown,
+			...(incoming.internationalTradeTreatyPopupShown ?? {}),
+		},
+		economicIsolationPopupShown: {
+			...base.economicIsolationPopupShown,
+			...(incoming.economicIsolationPopupShown ?? {}),
+		},
+		crumblingCanalsPopupShown: {
+			...base.crumblingCanalsPopupShown,
+			...(incoming.crumblingCanalsPopupShown ?? {}),
+		},
+		history: Array.isArray(incoming.history) ? incoming.history : base.history,
+	};
+
+	// Guard: Speculative choices should never be forced in round 1 before well selection.
+	if ((merged.game.round ?? 1) === 1) {
+		merged.speculativeInvestmentRoll = null;
+		merged.activeEventEffects = { ...merged.activeEventEffects, speculativeInvestment: false };
+		merged.speculativeInvestmentResolved = { ...base.speculativeInvestmentResolved };
+	}
+
+	return merged;
 };
 
 export function useMultiplayerClient() {
@@ -106,7 +165,13 @@ export function useMultiplayerClient() {
 					updateActorId(message.actorId);
 					setRoom(message.room);
 					updateVersion(message.version);
-					setAuthoritativeState(message.state);
+					setAuthoritativeState(normalizeAuthoritativeState(message.state));
+					setError(null);
+					break;
+				case "game_started":
+					setRoom(message.room);
+					updateVersion(message.version);
+					setAuthoritativeState(normalizeAuthoritativeState(message.state));
 					setError(null);
 					break;
 				case "room_state":
@@ -114,7 +179,7 @@ export function useMultiplayerClient() {
 					break;
 				case "game_state":
 					updateVersion(message.version);
-					setAuthoritativeState(message.state);
+					setAuthoritativeState(normalizeAuthoritativeState(message.state));
 					setError(null);
 					break;
 				case "action_rejected":

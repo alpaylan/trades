@@ -46,6 +46,12 @@ export type ServerMessage =
 			version: number;
 			state: State;
 	  }
+	| {
+			type: "game_started";
+			room: RoomSnapshot;
+			version: number;
+			state: State;
+	  }
 	| { type: "room_state"; room: RoomSnapshot }
 	| { type: "game_state"; state: State; version: number; actorId: ActorId; action: Action }
 	| { type: "action_rejected"; reason: string; expectedVersion: number }

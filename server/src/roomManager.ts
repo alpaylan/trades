@@ -81,7 +81,7 @@ export class RoomManager {
 		return { ok: true, value: { actorId, room: toSnapshot(room), state: room.state, version: room.version } };
 	}
 
-	startGame(actorId: ActorId): Result<RoomSnapshot> {
+	startGame(actorId: ActorId): Result<{ room: RoomSnapshot; state: State; version: number }> {
 		const room = this.getRoomForActor(actorId);
 		if (!room) {
 			return { ok: false, reason: "Room not found." };
@@ -93,8 +93,11 @@ export class RoomManager {
 		if (room.players.length < 2) {
 			return { ok: false, reason: "At least two players are required." };
 		}
+		// Reset to a clean game state on start so multiplayer matches local flow.
+		room.state = initialState();
+		room.version += 1;
 		room.started = true;
-		return { ok: true, value: toSnapshot(room) };
+		return { ok: true, value: { room: toSnapshot(room), state: room.state, version: room.version } };
 	}
 
 	submitAction(actorId: ActorId, expectedVersion: number, action: Action): Result<{ room: RoomSnapshot; state: State; version: number }> {

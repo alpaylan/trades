@@ -276,10 +276,13 @@ export default function Controls() {
 		state.activeEventEffects?.logisticBreakthrough &&
 		state.logisticBreakthroughPicks < 2;
 	const speculativeActive = state.activeEventEffects?.speculativeInvestment ?? false;
-	const speculativePending =
-		speculativeActive && !state.speculativeInvestmentResolved[state.game.turn];
 	const wellNotSelectedPending =
 		state.game.round === 1 && !hasPlayerSelectedWell(state.game, state.game.turn);
+	// Round 1 well selection must take priority; ignore Speculative Investment UI until the player has selected a well.
+	const speculativePending =
+		!wellNotSelectedPending &&
+		speculativeActive &&
+		!state.speculativeInvestmentResolved[state.game.turn];
 
 	const pt = state.pendingTurn;
 	const tile = pt ? state.game.tiles[`${pt.y}-${pt.x}`] : null;
@@ -356,7 +359,7 @@ export default function Controls() {
 					}}
 				/>
 			)}
-			{state.speculativeInvestmentRoll !== null && (
+			{!wellNotSelectedPending && state.speculativeInvestmentRoll !== null && (
 				<SpeculativeChoiceBanner state={state} dispatch={dispatch} />
 			)}
 			{showBlackMarketPopup && (

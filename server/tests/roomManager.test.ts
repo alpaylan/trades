@@ -22,7 +22,7 @@ test("create/join/start room lifecycle", () => {
 	if (!start.ok) {
 		return;
 	}
-	assert.equal(start.value.started, true);
+	assert.equal(start.value.room.started, true);
 });
 
 test("submit action validates versions and turns", () => {
@@ -35,15 +35,24 @@ test("submit action validates versions and turns", () => {
 	}
 	assert.equal(manager.startGame(host.actorId).ok, true);
 
+	// Round 1 requires selecting a well before END_TURN is accepted.
+	const selectWell: Action = { type: "SELECT_WELL", payload: { x: 0, y: 0 } };
+	const selectWellResult = manager.submitAction(host.actorId, 1, selectWell);
+	assert.equal(selectWellResult.ok, true);
+	if (!selectWellResult.ok) {
+		return;
+	}
+	assert.equal(selectWellResult.value.version, 2);
+
 	const endTurn: Action = { type: "END_TURN" };
-	const okAction = manager.submitAction(host.actorId, 0, endTurn);
+	const okAction = manager.submitAction(host.actorId, 2, endTurn);
 	assert.equal(okAction.ok, true);
 	if (!okAction.ok) {
 		return;
 	}
-	assert.equal(okAction.value.version, 1);
+	assert.equal(okAction.value.version, 3);
 
-	const staleVersion = manager.submitAction(guest.value.actorId, 0, endTurn);
+	const staleVersion = manager.submitAction(guest.value.actorId, 2, endTurn);
 	assert.equal(staleVersion.ok, false);
 	if (staleVersion.ok) {
 		return;
@@ -58,7 +67,7 @@ test("reject non-authoritative actions", () => {
 	assert.equal(manager.startGame(host.actorId).ok, true);
 
 	const invalid: Action = { type: "SELECT_TILE", payload: { type_: "action", action: "turn" } };
-	const result = manager.submitAction(host.actorId, 0, invalid);
+	const result = manager.submitAction(host.actorId, 1, invalid);
 	assert.equal(result.ok, false);
 	if (result.ok) {
 		return;

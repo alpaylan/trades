@@ -12,7 +12,8 @@ export default function Board() {
 	const wellSelectionMode =
 		game.round === 1 && !hasPlayerSelectedWell(game, game.turn);
 
-	const roll = state.speculativeInvestmentRoll;
+	// Round 1 well selection must take priority; ignore Speculative Investment until well is selected.
+	const roll = wellSelectionMode ? null : state.speculativeInvestmentRoll;
 	const speculativeTargetByKey: Record<string, "downgrade" | "upgrade"> = {};
 	if (roll === 1 || roll === 2 || roll === 5 || roll === 6) {
 		const current = game.turn;
